@@ -1,0 +1,80 @@
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AlertResponse } from '../types/alert';
+import ConfidenceBadge from './ConfidenceBadge';
+import RiskBadge from './RiskBadge';
+
+interface Props {
+  alert: AlertResponse;
+  onPress: () => void;
+}
+
+const CLASS_LABEL: Record<AlertResponse['detected_class'], string> = {
+  vegetacao: 'Vegetação',
+  solo_exposto: 'Solo Exposto',
+  agua: 'Água',
+  queimada: 'Queimada',
+  baixa_visibilidade: 'Baixa Visibilidade',
+};
+
+function formatTimestamp(iso: string): string {
+  const date = new Date(iso);
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+export default function AlertCard({ alert, onPress }: Props): JSX.Element {
+  return (
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+      <View style={styles.header}>
+        <Text style={styles.detectedClass}>
+          {CLASS_LABEL[alert.detected_class]}
+        </Text>
+        <Text style={styles.timestamp}>{formatTimestamp(alert.timestamp)}</Text>
+      </View>
+      <View style={styles.badges}>
+        <RiskBadge riskLevel={alert.risk_level} />
+        <ConfidenceBadge confidence={alert.analysis_confidence} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  detectedClass: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a2e',
+  },
+  timestamp: {
+    fontSize: 12,
+    color: '#888',
+  },
+  badges: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+});

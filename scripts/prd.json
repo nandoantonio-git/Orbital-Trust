@@ -1,21 +1,419 @@
 {
-  "project": "{{PROJECT_NAME}}",
-  "branchName": "loom/initial",
-  "description": "Backlog inicial — use /prd para gerar as user stories, /ralph para converter",
+  "project": "Orbital Trust",
+  "branchName": "ralph/orbital-trust-mvp",
+  "description": "MVP do Orbital Trust — pipeline IoT/CV com imagens orbitais abertas + app React Native com alertas ambientais",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Exemplo — delete este item",
-      "description": "Como desenvolvedor, quero entender o formato para que eu possa escrever meu próprio backlog.",
+      "title": "Setup da estrutura do módulo IoT e dependências",
+      "description": "Como desenvolvedor, preciso da estrutura base do módulo IoT para que o pipeline Python possa ser implementado.",
       "acceptanceCriteria": [
-        "Arquivo compila sem erros (gate.sh passa)",
-        "Funcionalidade X está implementada",
-        "Testes unitários passam"
+        "Diretório `iot/` criado com `__init__.py` e `requirements.txt`",
+        "requirements.txt inclui: opencv-python, numpy",
+        "`iot/config.py` define constantes: SUPPORTED_CLASSES, SUPPORTED_SOURCES",
+        "py_compile no módulo passa sem erros",
+        "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "fix": "",
-      "notes": "Cada story deve ser completável em 1 iteração do Ralph (1 context window)"
+      "notes": "Gate: python"
+    },
+    {
+      "id": "US-002",
+      "title": "Frame loader — leitura de imagens de satélite do disco",
+      "description": "Como desenvolvedor, quero carregar frames de imagens de satélite para que o pipeline de visão computacional tenha entrada.",
+      "acceptanceCriteria": [
+        "Arquivo `iot/frame_loader.py` criado",
+        "Função `load_frames(folder_path: str) -> list` aceita pasta com JPG/PNG",
+        "Retorna lista de arrays numpy; ignora arquivos não-imagem",
+        "Levanta FileNotFoundError se a pasta não existir",
+        "Teste unitário com pasta de fixture passa",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python"
+    },
+    {
+      "id": "US-003",
+      "title": "Detector de classe ambiental via OpenCV",
+      "description": "Como desenvolvedor, quero detectar a classe ambiental dominante em um frame para classificar o tipo de cobertura.",
+      "acceptanceCriteria": [
+        "Arquivo `iot/detector.py` criado",
+        "Função `detect_class(frame) -> dict` retorna `detected_class` (str) e `class_percentage` (float 0.0–1.0)",
+        "Classes suportadas: 'vegetacao', 'solo_exposto', 'agua', 'queimada', 'baixa_visibilidade'",
+        "Usa segmentação HSV do OpenCV",
+        "Teste unitário com frame de cor sintética passa",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python"
+    },
+    {
+      "id": "US-004",
+      "title": "Cálculo de change_score entre dois frames",
+      "description": "Como desenvolvedor, quero medir a mudança visual entre dois frames para detectar alterações ambientais.",
+      "acceptanceCriteria": [
+        "Arquivo `iot/change_detector.py` criado",
+        "Função `compute_change_score(frame_a, frame_b) -> float` retorna valor entre 0.0 e 1.0",
+        "Dois frames idênticos retornam 0.0; frames completamente diferentes retornam próximo de 1.0",
+        "Usa diferença absoluta em escala de cinza normalizada pelo tamanho do frame",
+        "Teste unitário com frames sintéticos passa",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python"
+    },
+    {
+      "id": "US-005",
+      "title": "Métricas de qualidade da imagem (cloud, shadow, quality, confidence)",
+      "description": "Como desenvolvedor, quero calcular métricas de qualidade do frame para que o contrato JSON possa indicar confiabilidade da análise.",
+      "acceptanceCriteria": [
+        "Arquivo `iot/quality.py` criado",
+        "Função `compute_quality_metrics(frame) -> dict` retorna `cloud_score`, `shadow_score`, `image_quality`, `cv_confidence` (todos float 0.0–1.0)",
+        "cloud_score = proporção de pixels próximos a branco",
+        "shadow_score = proporção de pixels próximos a preto",
+        "image_quality = 1.0 - max(cloud_score, shadow_score)",
+        "Teste unitário com frame branco, preto e colorido passa",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python"
+    },
+    {
+      "id": "US-006",
+      "title": "Montador e validador do payload JSON do contrato IoT",
+      "description": "Como desenvolvedor, quero montar e validar o payload JSON padronizado para que o contrato com ML/API seja respeitado.",
+      "acceptanceCriteria": [
+        "Arquivo `iot/payload.py` criado",
+        "Função `build_payload(event_id, area_id, source, detector_result, quality_result, change_score, frame_reference) -> dict`",
+        "Retorna dict com todos os campos: event_id, timestamp, area_id, source, detected_class, class_percentage, change_score, cloud_score, shadow_score, image_quality, cv_confidence, frame_reference",
+        "Levanta ValueError se algum campo obrigatório estiver ausente",
+        "Teste unitário de montagem e validação passa",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python"
+    },
+    {
+      "id": "US-007",
+      "title": "Pipeline IoT principal — orquestração de frames e geração de payloads",
+      "description": "Como desenvolvedor, quero executar o pipeline completo sobre uma pasta de frames para gerar a lista de payloads JSON prontos para envio.",
+      "acceptanceCriteria": [
+        "Arquivo `iot/pipeline.py` criado",
+        "Função `run_pipeline(frames_folder: str, area_id: str, source: str) -> list`",
+        "Processa pares consecutivos de frames para change_score",
+        "Cada payload gerado passa pela validação de `build_payload`",
+        "Teste de integração com 3 frames sintéticos gera 2 payloads válidos",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python"
+    },
+    {
+      "id": "US-008",
+      "title": "Setup do projeto mobile — Expo + TypeScript + React Navigation",
+      "description": "Como desenvolvedor mobile, preciso da estrutura base do app para que as telas e componentes possam ser implementados.",
+      "acceptanceCriteria": [
+        "Diretório `mobile/` criado com projeto Expo em TypeScript (template blank-typescript)",
+        "Pacotes instalados: @react-navigation/native, @react-navigation/stack, @react-native-async-storage/async-storage",
+        "tsconfig.json com strict: true",
+        "App.tsx inicial renderiza sem erro de compilação",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-009",
+      "title": "Interfaces TypeScript do contrato de alerta ambiental",
+      "description": "Como desenvolvedor mobile, quero tipos explícitos para o contrato de dados para que o app consuma alertas com segurança de tipo.",
+      "acceptanceCriteria": [
+        "Arquivo `mobile/src/types/alert.ts` criado",
+        "Interface `IoTPayload` com todos os campos do payload IoT tipados explicitamente",
+        "Interface `AlertResponse` com todos os campos da resposta ML/API",
+        "Tipo `RiskLevel = 'baixo' | 'medio' | 'alto'`",
+        "Tipo `DetectedClass = 'vegetacao' | 'solo_exposto' | 'agua' | 'queimada' | 'baixa_visibilidade'`",
+        "Sem uso de `any`",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-010",
+      "title": "Mock data — alertas ambientais de amostra",
+      "description": "Como desenvolvedor mobile, quero dados mock do contrato para que as telas possam ser desenvolvidas sem depender da API real.",
+      "acceptanceCriteria": [
+        "Arquivo `mobile/src/services/mockData.ts` criado",
+        "Array com 5+ objetos `AlertResponse` cobrindo os 3 risk_levels: baixo, medio, alto",
+        "Cobre pelo menos 3 detected_class diferentes",
+        "Todos os campos obrigatórios preenchidos com valores realistas",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-011",
+      "title": "Service layer — busca de alertas (mock-first, API-ready)",
+      "description": "Como desenvolvedor mobile, quero uma service layer para buscar alertas de forma que o código do app não dependa diretamente do mock.",
+      "acceptanceCriteria": [
+        "Arquivo `mobile/src/services/alertService.ts` criado",
+        "Função `getAlerts(): Promise<AlertResponse[]>` retorna dados do mock",
+        "Função `getAlertById(id: string): Promise<AlertResponse | null>` retorna alerta ou null",
+        "BASE_URL definida como constante; facilmente substituível pela URL real da API",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-012",
+      "title": "Componente ConfidenceBadge",
+      "description": "Como usuário do app, quero ver a confiança da análise com cor indicativa para avaliar a qualidade do alerta rapidamente.",
+      "acceptanceCriteria": [
+        "Arquivo `mobile/src/components/ConfidenceBadge.tsx` criado",
+        "Prop `confidence: number` (0.0–1.0)",
+        "Verde para >= 0.8, amarelo para >= 0.5, vermelho para < 0.5",
+        "Exibe valor percentual (ex: '85%')",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-013",
+      "title": "Componente RiskBadge",
+      "description": "Como usuário do app, quero ver o nível de risco com cor destacada para identificar alertas críticos de um olhar.",
+      "acceptanceCriteria": [
+        "Arquivo `mobile/src/components/RiskBadge.tsx` criado",
+        "Prop `riskLevel: RiskLevel`",
+        "Verde para 'baixo', amarelo para 'medio', vermelho para 'alto'",
+        "Exibe o label em português maiúsculo (BAIXO, MÉDIO, ALTO)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-014",
+      "title": "Componente AlertCard",
+      "description": "Como usuário do app, quero ver um card resumido de cada alerta para navegar rapidamente pela lista.",
+      "acceptanceCriteria": [
+        "Arquivo `mobile/src/components/AlertCard.tsx` criado",
+        "Props: `alert: AlertResponse`, `onPress: () => void`",
+        "Exibe: detected_class, RiskBadge, ConfidenceBadge, timestamp formatado",
+        "Pressionar o card chama onPress",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-015",
+      "title": "Tela Dashboard — lista de alertas",
+      "description": "Como usuário do app, quero ver a lista de alertas ambientais para monitorar as ocorrências detectadas.",
+      "acceptanceCriteria": [
+        "Arquivo `mobile/src/screens/DashboardScreen.tsx` criado",
+        "Carrega alertas via `alertService.getAlerts()` ao montar",
+        "Exibe estado de loading e estado vazio",
+        "Lista AlertCards; pressionar um card navega para AlertDetail passando alertId",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 15,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-016",
+      "title": "Tela AlertDetail — detalhes completos do alerta",
+      "description": "Como usuário do app, quero ver todos os dados de um alerta para entender a situação e a recomendação.",
+      "acceptanceCriteria": [
+        "Arquivo `mobile/src/screens/AlertDetailScreen.tsx` criado",
+        "Recebe `alertId` via route params; busca via `alertService.getAlertById`",
+        "Exibe: detected_class, class_percentage, change_score, RiskBadge, ConfidenceBadge, explanation, recommendation, source, timestamp",
+        "Exibe estado de loading e mensagem de erro se alerta não encontrado",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 16,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-017",
+      "title": "Tela History — histórico local com AsyncStorage",
+      "description": "Como usuário do app, quero ver os alertas que visualizei anteriormente para retomar análises passadas.",
+      "acceptanceCriteria": [
+        "Arquivo `mobile/src/screens/HistoryScreen.tsx` criado",
+        "Alertas visualizados são salvos no AsyncStorage sob a chave `@orbital_trust/history`",
+        "Lista exibida em ordem decrescente de timestamp",
+        "Estado vazio exibe mensagem 'Nenhum alerta visualizado ainda'",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 17,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-018",
+      "title": "Navegação do app — Stack Navigator com todas as telas",
+      "description": "Como usuário do app, quero navegar entre Dashboard, Detalhe e Histórico para usar o app completo.",
+      "acceptanceCriteria": [
+        "App.tsx configurado com Stack Navigator",
+        "Rotas definidas: Dashboard (raiz), AlertDetail, History",
+        "Botão ou ícone de acesso ao History visível na tela Dashboard",
+        "Navegação Dashboard → AlertDetail → voltar funciona sem erro",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 18,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-019",
+      "title": "Configuração de fontes orbitais abertas",
+      "description": "Como desenvolvedor, quero configurar fontes governamentais de imagens orbitais para que o pipeline use dados reais e rastreáveis.",
+      "acceptanceCriteria": [
+        "Arquivo `iot/data_sources.py` criado",
+        "Define fonte primária `INPE_BDC_STAC_URL` com endpoint STAC do Brazil Data Cube",
+        "Define fonte fallback `COPERNICUS_STAC_URL` ou configuração equivalente",
+        "Define lista de sources suportadas sem alterar o contrato existente: Sentinel-2, Landsat, FIRMS, INPE",
+        "Testes validam que as URLs e sources obrigatórias estão configuradas",
+        "Typecheck passes"
+      ],
+      "priority": 19,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python"
+    },
+    {
+      "id": "US-020",
+      "title": "Cliente STAC para busca de cenas orbitais",
+      "description": "Como desenvolvedor, quero buscar cenas orbitais por área e data para alimentar o pipeline com imagens abertas reais.",
+      "acceptanceCriteria": [
+        "Arquivo `iot/stac_client.py` criado",
+        "Função `search_scenes(bbox, start_date, end_date, source, max_cloud_score) -> list` implementada",
+        "Busca cenas por bbox, intervalo de datas e limite de nuvens",
+        "Retorna lista normalizada com scene_id, source, datetime, cloud_score e assets",
+        "Não altera o payload IoT existente",
+        "Teste unitário usa resposta STAC mockada sem depender de rede",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python"
+    },
+    {
+      "id": "US-021",
+      "title": "Seleção de assets e manifesto de cenas",
+      "description": "Como desenvolvedor, quero selecionar assets úteis das cenas STAC e salvar um manifesto rastreável para auditoria dos frames.",
+      "acceptanceCriteria": [
+        "Arquivo `iot/scene_manifest.py` criado",
+        "Função `build_scene_manifest(scenes, area_id) -> dict` implementada",
+        "Manifesto contém area_id, source, scene_id, datetime, cloud_score e asset_href",
+        "Seleciona preferencialmente asset visual/thumbnail quando disponível",
+        "Salva manifesto em `data/manifests/` como JSON",
+        "Teste unitário cobre cena com asset válido e cena sem asset compatível",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python"
+    },
+    {
+      "id": "US-022",
+      "title": "Download de frames orbitais para data/",
+      "description": "Como desenvolvedor, quero baixar frames orbitais selecionados para que o pipeline OpenCV processe dados reais.",
+      "acceptanceCriteria": [
+        "Arquivo `iot/frame_downloader.py` criado",
+        "Função `download_scene_frames(manifest_path, output_folder) -> list[str]` implementada",
+        "Baixa assets de imagem para `data/frames/`",
+        "Mantém nome de arquivo rastreável com source, area_id e scene_id",
+        "Ignora downloads já existentes",
+        "Falhas de download retornam erro claro sem quebrar arquivos já baixados",
+        "Teste unitário mocka HTTP e valida criação dos arquivos",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python"
+    },
+    {
+      "id": "US-023",
+      "title": "Pipeline de ingestão orbital integrado ao IoT",
+      "description": "Como desenvolvedor, quero executar busca, manifesto, download e pipeline IoT em um único fluxo para gerar payloads ambientais reais.",
+      "acceptanceCriteria": [
+        "Arquivo `iot/orbital_ingestion.py` criado",
+        "Função `run_orbital_ingestion(area_id, bbox, start_date, end_date, source) -> list` implementada",
+        "Executa busca STAC, manifesto, download de frames e `run_pipeline`",
+        "Todo payload gerado mantém `source` identificado como Sentinel-2, Landsat, FIRMS ou INPE",
+        "Não altera campos obrigatórios do contrato IoT",
+        "Teste de integração usa STAC e download mockados e gera payloads válidos",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python"
+    },
+    {
+      "id": "US-024",
+      "title": "Documentação operacional da ingestão orbital",
+      "description": "Como desenvolvedor, quero documentar como buscar imagens governamentais abertas para que o time consiga reproduzir a ingestão.",
+      "acceptanceCriteria": [
+        "README ou arquivo `docs/orbital-data.md` criado",
+        "Documenta fonte primária INPE Brazil Data Cube STAC",
+        "Documenta fallback Copernicus Sentinel-2",
+        "Inclui exemplo de bbox, intervalo de datas e source",
+        "Explica onde os frames e manifestos são salvos",
+        "Explica que o contrato JSON IoT não deve ser alterado",
+        "Typecheck passes"
+      ],
+      "priority": 24,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python"
     }
   ]
 }

@@ -1,6 +1,4 @@
-# Agente — {{PROJECT_NAME}}
-
-> Gerado por `init.sh` em {{INIT_DATE}}. Edite as seções marcadas com TODO.
+# Agente — Orbital Trust
 
 ---
 
@@ -13,41 +11,42 @@
 
 ## Estilo de código
 
-<!-- TODO: linguagem principal, convenções, formatação -->
-- Linguagem: {{LANGUAGE}}
+- Linguagem: Python (pipeline IoT/CV) + TypeScript (app React Native mobile)
 - Funções simples e executáveis
-- Type hints apenas onde ajudam na leitura
+- Type hints em Python onde ajudam na leitura; interfaces TypeScript para todos os contratos
 - Comentários curtos — o código deve se explicar
 
 ## Domínio do projeto
 
-<!-- TODO: descreva o problema que este projeto resolve em 2-3 frases -->
-{{PROJECT_DESCRIPTION}}
+Orbital Trust transforma imagens orbitais abertas (Sentinel-2, Landsat) em alertas ambientais confiáveis e acionáveis. O pipeline cobre: captura e processamento de frames via OpenCV → análise de risco ML → API de integração → app React Native. O MVP usa dados abertos reais de satélite sem depender de webcam como conceito principal; a webcam/vídeo é cumprida usando sequências de frames orbitais.
 
 ## Estrutura de arquivos
 
-<!-- TODO: mapeie os módulos principais -->
 ```
-{{PROJECT_NAME}}/
-├── src/          # código principal
-├── data/         # dados brutos e processados
-├── models/       # artefatos treinados (se ML)
-├── scripts/      # ralph.sh, implement.sh, prd.json
-└── tests/        # testes de validação
+orbital-trust/
+├── iot/              # Python pipeline — OpenCV, leitura de frames, payload JSON
+├── ml/               # Classificação de risco — scikit-learn ou heurísticas
+├── api/              # Camada de integração — FastAPI ou Node/Express
+├── mobile/           # App React Native, Expo, TypeScript
+├── scripts/          # ralph.sh, implement.sh, gate.sh, prd.json
+└── data/             # Frames de satélite de amostra (Sentinel-2, Landsat)
 ```
 
 ## Regras críticas
 
-<!-- TODO: as regras invioláveis do domínio (regras invioláveis do domínio) -->
-- [ ] Regra 1: ...
-- [ ] Regra 2: ...
-- [ ] Regra 3: ...
+- O contrato JSON entre IoT e ML/API deve ser definido antes de qualquer implementação
+- Campos obrigatórios no payload IoT → ML/API: `event_id`, `timestamp`, `area_id`, `source`, `detected_class`, `class_percentage`, `change_score`, `cloud_score`, `shadow_score`, `image_quality`, `cv_confidence`
+- Campos obrigatórios na resposta ML/API → Mobile: `event_id`, `risk_level`, `analysis_confidence`, `explanation`, `recommendation`, `model_version`
+- Nenhuma área pode alterar o formato do payload sem consenso do grupo
+- `risk_level` só aceita: `baixo`, `medio`, `alto`
+- Todo frame processado deve ter `source` identificado (Sentinel-2, Landsat, FIRMS, INPE)
 
 ## Gate de validação
 
-<!-- TODO: o que valida que o código está correto -->
 O Ralph usa `scripts/gate.sh` para validar cada story.
-Gate padrão: `{{GATE_COMMAND}}`
+
+- Stories Python (IoT, ML): gate `python` — py_compile + pytest
+- Stories TypeScript (Mobile): gate `typescript` — tsc sem erros
 
 Critérios mínimos de aceitação:
 - Código compila / passa lint sem erros
@@ -56,7 +55,6 @@ Critérios mínimos de aceitação:
 
 ## Contexto de execução
 
-- Container: `.devcontainer/` (Python 3.11 + Node + Codex)
 - Provider padrão: codex → gemini → claude (fallback triplo)
 - Estado do loop: `scripts/.current-provider`, `scripts/.last-story`
 
