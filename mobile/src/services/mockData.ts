@@ -15,6 +15,7 @@ export const mockAlerts: AlertResponse[] = [
     class_percentage: 38.0,
     change_score: 0.87,
     source: 'Sentinel-2',
+    image_url: 'https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-09-30/250m/7/37/44.jpg',
   },
   {
     event_id: 'EVT-2024-002',
@@ -30,6 +31,7 @@ export const mockAlerts: AlertResponse[] = [
     class_percentage: 52.0,
     change_score: 0.79,
     source: 'Landsat-8',
+    image_url: 'https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-08-15/250m/7/36/44.jpg',
   },
   {
     event_id: 'EVT-2024-003',
@@ -45,6 +47,7 @@ export const mockAlerts: AlertResponse[] = [
     class_percentage: 61.0,
     change_score: 0.45,
     source: 'Sentinel-2',
+    image_url: 'https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-07-15/250m/7/38/44.jpg',
   },
   {
     event_id: 'EVT-2024-004',
@@ -60,6 +63,7 @@ export const mockAlerts: AlertResponse[] = [
     class_percentage: 23.0,
     change_score: 0.52,
     source: 'Sentinel-2',
+    image_url: 'https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-06-01/250m/7/37/44.jpg',
   },
   {
     event_id: 'EVT-2024-005',
@@ -75,6 +79,7 @@ export const mockAlerts: AlertResponse[] = [
     class_percentage: 88.0,
     change_score: 0.05,
     source: 'Sentinel-2',
+    image_url: 'https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-05-10/250m/7/37/45.jpg',
   },
   {
     event_id: 'EVT-2024-006',
@@ -90,5 +95,6 @@ export const mockAlerts: AlertResponse[] = [
     class_percentage: 34.0,
     change_score: 0.12,
     source: 'Landsat-9',
+    image_url: 'https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-10-15/250m/7/39/44.jpg',
   },
 ];

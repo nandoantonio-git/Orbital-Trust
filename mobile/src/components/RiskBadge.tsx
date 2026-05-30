@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { RiskLevel } from '../types/alert';
+import { useResponsive } from '../utils/responsive';
 
 interface Props {
   riskLevel: RiskLevel;
@@ -14,10 +15,11 @@ const RISK_CONFIG: Record<RiskLevel, { color: string; label: string }> = {
 
 export default function RiskBadge({ riskLevel }: Props): JSX.Element {
   const { color, label } = RISK_CONFIG[riskLevel];
+  const { fontSizes } = useResponsive();
 
   return (
     <View style={[styles.badge, { backgroundColor: color }]}>
-      <Text style={styles.text}>{label}</Text>
+      <Text style={[styles.text, { fontSize: fontSizes.caption }]}>{label}</Text>
     </View>
   );
 }
@@ -31,7 +33,6 @@ const styles = StyleSheet.create({
   },
   text: {
     color: '#fff',
-    fontSize: 13,
     fontWeight: '600',
   },
 });

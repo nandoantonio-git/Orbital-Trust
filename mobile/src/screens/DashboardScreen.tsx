@@ -11,6 +11,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import AlertCard from '../components/AlertCard';
 import { getAlerts } from '../services/alertService';
 import type { AlertResponse } from '../types/alert';
+import { useResponsive } from '../utils/responsive';
 
 export type RootStackParamList = {
   Dashboard: undefined;
@@ -24,6 +25,7 @@ export default function DashboardScreen(): JSX.Element {
   const navigation = useNavigation<DashboardNavProp>();
   const [alerts, setAlerts] = useState<AlertResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const { fontSizes } = useResponsive();
 
   useEffect(() => {
     getAlerts()
@@ -42,7 +44,7 @@ export default function DashboardScreen(): JSX.Element {
   if (alerts.length === 0) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.emptyText}>Nenhum alerta encontrado.</Text>
+        <Text style={[styles.emptyText, { fontSize: fontSizes.body }]}>Nenhum alerta encontrado.</Text>
       </View>
     );
   }
@@ -50,6 +52,7 @@ export default function DashboardScreen(): JSX.Element {
   return (
     <FlatList
       style={styles.list}
+      contentContainerStyle={styles.listContent}
       data={alerts}
       keyExtractor={(item) => item.event_id}
       renderItem={({ item }) => (
@@ -70,6 +73,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     paddingVertical: 8,
   },
+  listContent: {
+    maxWidth: 600,
+    alignSelf: 'center',
+    width: '100%',
+  },
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -77,7 +85,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   emptyText: {
-    fontSize: 16,
     color: '#888',
   },
 });

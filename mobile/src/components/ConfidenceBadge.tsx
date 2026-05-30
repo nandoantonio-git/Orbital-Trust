@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useResponsive } from '../utils/responsive';
 
 interface Props {
   confidence: number;
@@ -14,10 +15,11 @@ function getBadgeColor(confidence: number): string {
 export default function ConfidenceBadge({ confidence }: Props): JSX.Element {
   const color = getBadgeColor(confidence);
   const label = `${Math.round(confidence * 100)}%`;
+  const { fontSizes } = useResponsive();
 
   return (
     <View style={[styles.badge, { backgroundColor: color }]}>
-      <Text style={styles.text}>{label}</Text>
+      <Text style={[styles.text, { fontSize: fontSizes.caption }]}>{label}</Text>
     </View>
   );
 }
@@ -31,7 +33,6 @@ const styles = StyleSheet.create({
   },
   text: {
     color: '#fff',
-    fontSize: 13,
     fontWeight: '600',
   },
 });

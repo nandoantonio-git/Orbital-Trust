@@ -19,6 +19,7 @@ export interface IoTPayload {
   shadow_score: number;
   image_quality: number;
   cv_confidence: number;
+  frame_reference: string;
 }
 
 export interface AlertResponse {
@@ -33,4 +34,5 @@ export interface AlertResponse {
   class_percentage?: number;
   change_score?: number;
   source?: string;
+  image_url?: string;
 }

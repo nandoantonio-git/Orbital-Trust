@@ -414,6 +414,160 @@
       "passes": true,
       "fix": "",
       "notes": "Gate: python"
+    },
+    {
+      "id": "US-025",
+      "title": "Adicionar frame_reference ao tipo IoTPayload",
+      "description": "Como desenvolvedor, quero que o tipo IoTPayload inclua frame_reference para que o contrato TypeScript reflita exatamente o payload que o pipeline Python gera.",
+      "acceptanceCriteria": [
+        "Campo `frame_reference: string` adicionado à interface `IoTPayload` em `mobile/src/types/alert.ts`",
+        "Sem uso de `any`",
+        "Typecheck passes"
+      ],
+      "priority": 25,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-026",
+      "title": "Adicionar image_url ao tipo AlertResponse e ao mock data",
+      "description": "Como desenvolvedor, quero que AlertResponse carregue a URL da imagem de satélite analisada para que o app possa exibi-la.",
+      "acceptanceCriteria": [
+        "Campo `image_url?: string` adicionado à interface `AlertResponse` em `mobile/src/types/alert.ts`",
+        "Todos os 6 objetos em `mobile/src/services/mockData.ts` preenchidos com `image_url` usando URLs reais do NASA GIBS no formato `https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/{date}/250m/7/37/44.jpg`",
+        "Datas: EVT-2024-001 → 2024-09-30, EVT-2024-002 → 2024-08-15, EVT-2024-003 → 2024-07-15, EVT-2024-004 → 2024-06-01, EVT-2024-005 → 2024-07-15, EVT-2024-006 → 2024-08-15",
+        "Typecheck passes"
+      ],
+      "priority": 26,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-027",
+      "title": "Exibir imagem de satélite no topo da AlertDetailScreen",
+      "description": "Como usuário do app, quero ver a imagem orbital que gerou o alerta para entender visualmente o que foi detectado.",
+      "acceptanceCriteria": [
+        "Componente `<Image>` adicionado no topo de `mobile/src/screens/AlertDetailScreen.tsx`",
+        "Imagem carregada via `source={{ uri: alert.image_url }}` quando `image_url` estiver presente",
+        "Dimensões: largura 100% da tela, altura 200px",
+        "Exibe placeholder com texto 'Imagem não disponível' quando `image_url` estiver ausente",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 27,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-028",
+      "title": "Criar utilitários de responsividade (breakpoints, fontes, espaçamentos)",
+      "description": "Como desenvolvedor, quero utilitários centralizados de responsividade para que todos os componentes usem valores consistentes em mobile e web.",
+      "acceptanceCriteria": [
+        "Arquivo `mobile/src/utils/responsive.ts` criado",
+        "Hook `useResponsive()` retorna `{ isWeb: boolean, isTablet: boolean, fontSizes: {...}, spacing: {...}, maxWidth: number }`",
+        "fontSizes: { h1, h2, h3, body, label, caption } — valores maiores quando width > 600",
+        "spacing: { xs, sm, md, lg } — valores maiores quando width > 600",
+        "maxWidth: 600 para conteúdo principal (cards, formulários)",
+        "Usa `useWindowDimensions` do React Native internamente",
+        "Typecheck passes"
+      ],
+      "priority": 28,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript — base para todas as stories de responsividade"
+    },
+    {
+      "id": "US-029",
+      "title": "Corrigir imagem de satélite quebrada na AlertDetailScreen",
+      "description": "Como usuário, quero ver a imagem orbital corretamente em qualquer tamanho de tela sem distorção ou área preta.",
+      "acceptanceCriteria": [
+        "Componente de imagem em `mobile/src/screens/AlertDetailScreen.tsx` usa `aspectRatio: 1` em vez de `height: 200` fixo",
+        "`resizeMode` alterado de 'cover' para 'contain'",
+        "Imagem tem `maxWidth: 400` e `alignSelf: 'center'` para não distorcer em telas largas",
+        "Placeholder 'Imagem não disponível' tem as mesmas dimensões que a imagem real",
+        "Em tela web (> 600px), imagem não ultrapassa 400px de largura",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 29,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-030",
+      "title": "Adicionar maxWidth e centralização em todos os containers de conteúdo",
+      "description": "Como usuário web, quero que o conteúdo não se expanda para a largura total da tela para que o layout seja legível em desktop.",
+      "acceptanceCriteria": [
+        "`AlertCard` em `mobile/src/components/AlertCard.tsx` tem `maxWidth: 600` e `alignSelf: 'center'`",
+        "`DashboardScreen` FlatList tem `contentContainerStyle` com `maxWidth: 600` e `alignSelf: 'center'`",
+        "`HistoryScreen` FlatList tem `contentContainerStyle` com `maxWidth: 600` e `alignSelf: 'center'`",
+        "`AlertDetailScreen` View de conteúdo tem `maxWidth: 600` e `alignSelf: 'center'`",
+        "`ScrollView` da AlertDetailScreen tem `contentContainerStyle={{ alignItems: 'center' }}`",
+        "Em tela mobile (< 600px) o layout permanece idêntico ao atual",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 30,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-031",
+      "title": "Aplicar tipografia responsiva em todos os componentes",
+      "description": "Como usuário web, quero fontes legíveis em qualquer tamanho de tela para que o texto não seja minúsculo em desktop.",
+      "acceptanceCriteria": [
+        "Hook `useResponsive()` de US-028 usado em: AlertDetailScreen, AlertCard, ConfidenceBadge, RiskBadge, DashboardScreen, HistoryScreen",
+        "Todos os `fontSize` hardcoded substituídos por valores do hook (body, label, caption, h2, h3)",
+        "Em tela > 600px: body=16, label=15, caption=13, h2=20, h3=18",
+        "Em tela <= 600px: body=14, label=13, caption=12, h2=18, h3=16 (valores atuais mantidos)",
+        "Sem regressão visual no layout mobile",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 31,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript — depende de US-028"
+    },
+    {
+      "id": "US-032",
+      "title": "Configurar deep linking e navegação web com URLs",
+      "description": "Como usuário web, quero que os botões voltar/avançar do browser funcionem e que cada tela tenha uma URL para que o app funcione como uma SPA real.",
+      "acceptanceCriteria": [
+        "`NavigationContainer` em `App.tsx` tem prop `linking` configurada",
+        "Rotas mapeadas: Dashboard → '/', AlertDetail → '/alerts/:alertId', History → '/history'",
+        "Navegar entre telas atualiza a URL no browser",
+        "Botão voltar do browser retorna à tela anterior",
+        "Refresh da página mantém a tela correta (não volta ao Dashboard)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 32,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-033",
+      "title": "Corrigir touch targets e espaçamentos para web (WCAG)",
+      "description": "Como usuário web, quero elementos clicáveis com altura mínima de 44px e espaçamentos adequados para que o app seja acessível.",
+      "acceptanceCriteria": [
+        "Botão 'Histórico' no header de `App.tsx` tem `paddingHorizontal: 12`, `paddingVertical: 8` e `minHeight: 44`",
+        "`AlertCard` tem `minHeight: 80` para garantir touch target adequado",
+        "Espaçamentos de padding em AlertDetailScreen usam hook `useResponsive()` de US-028",
+        "`DetailRow` em AlertDetailScreen tem `flexWrap: 'wrap'` e `minWidth` em rowLabel e rowValue para não truncar em telas estreitas",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 33,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript — depende de US-028"
     }
   ]
 }
