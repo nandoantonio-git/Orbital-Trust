@@ -96,7 +96,7 @@ def test_run_orbital_ingestion_payloads_have_required_fields():
     required = {
         "event_id", "timestamp", "area_id", "source", "detected_class",
         "class_percentage", "change_score", "cloud_score", "shadow_score",
-        "image_quality", "cv_confidence",
+        "image_quality", "cv_confidence", "frame_reference",
     }
     for payload in result:
         for field in required:

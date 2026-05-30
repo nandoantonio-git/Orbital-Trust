@@ -18,7 +18,7 @@ RUN if ! command -v node >/dev/null 2>&1; then \
     && apt-get update \
     && apt-get install -y --no-install-recommends nodejs; \
     fi \
-    && npm install -g @openai/codex \
+    && npm install -g @openai/codex @anthropic-ai/claude-code @google/gemini-cli \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt requirements-dev.txt /tmp/

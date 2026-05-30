@@ -26,8 +26,8 @@ fi
 if [[ -z "$GATE_TYPE" ]]; then
   case "$TARGET" in
     *.py)   GATE_TYPE="python" ;;
-    *.ts)   GATE_TYPE="typescript" ;;
-    *.js)   GATE_TYPE="javascript" ;;
+    *.ts|*.tsx|*.jsx)   GATE_TYPE="typescript" ;;
+    *.js)               GATE_TYPE="javascript" ;;
     *.sh)   GATE_TYPE="bash" ;;
     *.go)   GATE_TYPE="go" ;;
     *)      GATE_TYPE="python" ;; # padrão histórico
@@ -44,9 +44,10 @@ case "$GATE_TYPE" in
       python3 -m py_compile "$TARGET" 2>&1 || { echo "py_compile falhou: $TARGET" >&2; exit 1; }
     else
       # diretório: verifica todos os .py
-      find "$TARGET" -name "*.py" | while read -r f; do
+      # process substitution keeps the while loop in the current shell so exit 1 propagates
+      while read -r f; do
         python3 -m py_compile "$f" 2>&1 || { echo "py_compile falhou: $f" >&2; exit 1; }
-      done
+      done < <(find "$TARGET" -name "*.py")
     fi
 
     # Gate 2: testes da story se existirem

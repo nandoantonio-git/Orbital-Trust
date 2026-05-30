@@ -9,11 +9,13 @@ set -euo pipefail
 MIN_SESSIONS="${MIN_SESSIONS:-3}"   # mínimo de sessões boas para distilação
 MAX_ATTEMPTS=3
 DRY_RUN=false
+FORCED_PROVIDER=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --min-sessions) MIN_SESSIONS="$2"; shift 2 ;;
     --dry-run) DRY_RUN=true; shift ;;
+    --provider) FORCED_PROVIDER="$2"; shift 2 ;;
     *) shift ;;
   esac
 done
@@ -69,6 +71,10 @@ CANDIDATE_PATH="$PENDING_DIR/${CANDIDATE_NAME}.md"
 # ── Detecta provider ──────────────────────────────────────────────────────────
 
 detect_provider() {
+  if [[ -n "$FORCED_PROVIDER" ]]; then
+    echo "$FORCED_PROVIDER"
+    return
+  fi
   for p in codex gemini claude; do
     if command -v "$p" &>/dev/null; then echo "$p"; return; fi
   done

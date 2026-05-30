@@ -1,0 +1,22 @@
+{
+  "area_id": "area-multi",
+  "generated_at": "2026-05-30T02:47:57.176830+00:00",
+  "scenes": [
+    {
+      "area_id": "area-multi",
+      "source": "Sentinel-2",
+      "scene_id": "S2A_20240115",
+      "datetime": "2024-01-15T10:30:00Z",
+      "cloud_score": 5.2,
+      "asset_href": "https://example.com/thumb.jpg"
+    },
+    {
+      "area_id": "area-multi",
+      "source": "Landsat",
+      "scene_id": "LC08_20240120",
+      "datetime": "2024-01-20T12:00:00Z",
+      "cloud_score": 12.0,
+      "asset_href": "https://example.com/B5.tif"
+    }
+  ]
+}
