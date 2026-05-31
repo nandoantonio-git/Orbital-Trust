@@ -10,7 +10,7 @@ O projeto substitui a ideia de webcam por sequencias de frames orbitais: cada fr
 - Gustavo Ruiz Vieira Paulino — RM554779
 - Guilherme Abe — RM554743
 - Thomas Reichmann — RM554812
-- Vitor Sobrenome — RM500000
+- Vitor Sobrenome — TODO: preencher RM real antes da entrega final
 
 ## Estrutura Do Projeto
 
@@ -95,9 +95,24 @@ Nos mocks do app, `source` descreve a origem exibida do alerta. Quando `image_ur
 Instale as dependencias Python usadas pelo pipeline e pelos testes:
 
 ```bash
-python3 -m pip install -r requirements.txt -r requirements-dev.txt
-python3 -m pip install -r iot/requirements.txt
+python3 -m pip install -r iot/requirements.txt -r requirements-dev.txt
 ```
+
+### Demo IoT Com Video Orbital
+
+Execute o demo IoT/CV sobre o video de amostra `queimada.mp4`:
+
+```bash
+python3 iot/demo_video.py --input queimada.mp4
+```
+
+A saida padrao do demo e o video segmentado em:
+
+```text
+iot/outputs/demo_segmented.mp4
+```
+
+O demo processa a sequencia de frames do video, aplica segmentacao/metricas OpenCV e gera payloads no contrato IoT -> ML/API usando fonte valida do MVP.
 
 Gere mock data real para o app a partir de tiles orbitais publicos:
 
@@ -126,8 +141,10 @@ python3 -m pip install -r requirements.txt -r requirements-dev.txt
 Suba a API FastAPI:
 
 ```bash
-python3 -m uvicorn api.main:app --reload
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+A API registra `CORSMiddleware` para permitir chamadas locais do Expo/React Native durante o desenvolvimento do MVP. As origens estao liberadas com `["*"]` neste ambiente academico; em producao, restrinja para os dominios confiaveis.
 
 Analise um payload IoT:
 
@@ -173,8 +190,8 @@ Resposta esperada:
 O microservico FastAPI tambem pode ser executado em container:
 
 ```bash
-docker build -t orbital-trust-api .
-docker run --rm -p 8000:8000 orbital-trust-api
+docker build -t orbital-trust .
+docker run --rm -p 8000:8000 orbital-trust
 ```
 
 A API ficara disponivel em `http://127.0.0.1:8000`.
@@ -230,3 +247,9 @@ bash scripts/gate.sh scripts/gate.sh
 ```
 
 O gate detecta o tipo pelo alvo: Python roda `py_compile` e pytest, TypeScript roda `npx tsc --noEmit`, e Bash roda `bash -n`.
+
+## Pendencias Academicas
+
+- Video da disciplina: pendente de gravacao/publicacao final.
+- Notebook ML: `notebooks/orbital_trust_ml.ipynb` existe no repositorio; revisar execucao completa e outputs antes da entrega final.
+- RM do Vitor: pendente de confirmacao no cadastro do grupo.

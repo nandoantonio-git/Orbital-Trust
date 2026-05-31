@@ -44,11 +44,11 @@ def test_health_returns_service_status():
     assert response.json() == {"status": "ok", "service": "orbital-trust-ml"}
 
 
-def test_cors_preflight_allows_spring_boot_request():
+def test_cors_preflight_allows_expo_react_native_request():
     response = client.options(
         "/alerts/analyze",
         headers={
-            "Origin": "http://localhost:8080",
+            "Origin": "http://localhost:19006",
             "Access-Control-Request-Method": "POST",
             "Access-Control-Request-Headers": "Content-Type",
         },
@@ -56,6 +56,7 @@ def test_cors_preflight_allows_spring_boot_request():
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "*"
+    assert "GET" in response.headers["access-control-allow-methods"]
     assert "POST" in response.headers["access-control-allow-methods"]
     assert "Content-Type" in response.headers["access-control-allow-headers"]
 

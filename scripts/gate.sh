@@ -30,6 +30,7 @@ if [[ -z "$GATE_TYPE" ]]; then
     Dockerfile|*/Dockerfile|*.Dockerfile) GATE_TYPE="bash" ;;
     .env|*/.env|.env.*|*/.env.*) GATE_TYPE="bash" ;;
     *.py)   GATE_TYPE="python" ;;
+    *.ipynb) GATE_TYPE="notebook" ;;
     *.ts|*.tsx|*.jsx)   GATE_TYPE="typescript" ;;
     *.js)               GATE_TYPE="javascript" ;;
     *.sh)   GATE_TYPE="bash" ;;
@@ -55,6 +56,37 @@ case "$GATE_TYPE" in
     fi
 
     # Gate 2: testes da story se existirem
+    if [[ -d "tests/" ]]; then
+      python3 -m pytest tests/ -q --tb=short 2>&1 | tail -20 || {
+        echo "pytest falhou" >&2; exit 1
+      }
+    fi
+    ;;
+
+  notebook)
+    python3 - "$TARGET" <<'PY' 2>&1 || { echo "notebook compile falhou: $TARGET" >&2; exit 1; }
+import json
+import sys
+from pathlib import Path
+
+
+def compile_notebook(path: Path) -> None:
+    notebook = json.loads(path.read_text(encoding="utf-8"))
+    for index, cell in enumerate(notebook.get("cells", []), start=1):
+        if cell.get("cell_type") != "code":
+            continue
+        source = "".join(cell.get("source", []))
+        compile(source, f"{path}:cell-{index}", "exec")
+
+
+target = Path(sys.argv[1])
+if target.is_file():
+    compile_notebook(target)
+else:
+    for notebook_path in target.rglob("*.ipynb"):
+        compile_notebook(notebook_path)
+PY
+
     if [[ -d "tests/" ]]; then
       python3 -m pytest tests/ -q --tb=short 2>&1 | tail -20 || {
         echo "pytest falhou" >&2; exit 1

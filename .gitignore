@@ -26,6 +26,7 @@ skills/
 loops/
 memory/
 AGENTS.md
+PRD.pdf
 
 # Backup de AGENTS.md gerado pelo Ralph
 AGENTS.md.backup
@@ -84,3 +85,10 @@ data/generated_mock_tile_evidence.json
 .vscode/settings.json
 *.swp
 *.swo
+
+# -------------------------------------
+# Videos e outros arquivos grandes que não devem ser versionados
+# -------------------------------------
+*.mp4
+*.mov
+*.avi
