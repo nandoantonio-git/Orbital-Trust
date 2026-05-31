@@ -27,6 +27,8 @@ if [[ -z "$GATE_TYPE" ]]; then
   case "$TARGET" in
     data|mock|mocks|data/mock|data-mock) GATE_TYPE="data" ;;
     *payloads_*.json|*generated_mock_tile_evidence.json|*generatedMockData.ts) GATE_TYPE="data" ;;
+    Dockerfile|*/Dockerfile|*.Dockerfile) GATE_TYPE="bash" ;;
+    .env|*/.env|.env.*|*/.env.*) GATE_TYPE="bash" ;;
     *.py)   GATE_TYPE="python" ;;
     *.ts|*.tsx|*.jsx)   GATE_TYPE="typescript" ;;
     *.js)               GATE_TYPE="javascript" ;;

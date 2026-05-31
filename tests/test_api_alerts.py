@@ -37,6 +37,29 @@ def test_analyze_alert_returns_low_risk():
     assert data["model_version"] == "orbital-heuristic-v0.1.0"
 
 
+def test_health_returns_service_status():
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "service": "orbital-trust-ml"}
+
+
+def test_cors_preflight_allows_spring_boot_request():
+    response = client.options(
+        "/alerts/analyze",
+        headers={
+            "Origin": "http://localhost:8080",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "*"
+    assert "POST" in response.headers["access-control-allow-methods"]
+    assert "Content-Type" in response.headers["access-control-allow-headers"]
+
+
 def test_analyze_alert_returns_medium_risk():
     response = client.post(
         "/alerts/analyze",

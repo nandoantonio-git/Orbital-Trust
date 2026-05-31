@@ -1,6 +1,7 @@
 from typing import Literal
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -52,6 +53,19 @@ class AlertResponse(BaseModel):
 
 
 app = FastAPI(title="Orbital Trust API", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    # Desenvolvimento: restringir para domínios confiáveis em produção.
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": "orbital-trust-ml"}
 
 
 @app.post("/alerts/analyze", response_model=AlertResponse)
