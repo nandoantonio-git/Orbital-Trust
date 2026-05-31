@@ -26,10 +26,18 @@ scripts/.iter.log
 skills/
 loops/
 memory/
+tasks/
+reports/
 AGENTS.md
 AGENTS.md.backup
 AGENTS.md.candidate
 PRD.pdf
+PRD*.pdf
+
+# -------------------------------------
+# Claude Code local config
+# -------------------------------------
+.claude/
 
 # -------------------------------------
 # Python
