@@ -1,11 +1,15 @@
 # =============================================================================
 # Orbital Trust — .gitignore
-# Remove artefatos do template Ralph/Athena que não pertencem ao produto
 # =============================================================================
 
 # -------------------------------------
-# Artefatos do loop Ralph/Athena (template de auto-aprimoramento — não é produto)
+# Infraestrutura e Scripts de Suporte
 # -------------------------------------
+scripts/audit/
+scripts/ralph.sh
+scripts/implement.sh
+scripts/record.sh
+scripts/prd.json
 scripts/.current-provider
 scripts/.last-story
 scripts/.story-attempts
@@ -14,23 +18,18 @@ scripts/.last-message.md
 scripts/.model-check.log
 scripts/run.log
 scripts/events.log
-scripts/audit/
 scripts/.iter.log
-scripts/prd.json
-scripts/ralph.sh
-scripts/implement.sh
-scripts/record.sh
 
-# Diretórios inteiros do template (se existirem localmente, não commitar)
+# -------------------------------------
+# Diretórios de Experimento/Conhecimento (não pertencem ao produto final)
+# -------------------------------------
 skills/
 loops/
 memory/
 AGENTS.md
-PRD.pdf
-
-# Backup de AGENTS.md gerado pelo Ralph
 AGENTS.md.backup
 AGENTS.md.candidate
+PRD.pdf
 
 # -------------------------------------
 # Python

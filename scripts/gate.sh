@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # gate.sh — gate de validação configurável
 # Substitui o py_compile hardcoded do projeto original.
-# O ralph.sh chama: bash scripts/gate.sh <arquivo_ou_diretorio>
+# O gate.sh verifica a saúde de arquivos ou diretórios antes de commits ou deploys.
 #
 # Exit 0 = passou. Exit 1 = falhou. stderr recebe o motivo.
 

@@ -41,112 +41,69 @@ mobile/ - dashboard Expo para alertas ambientais
 
 O MVP atual mantem a classificacao e os mocks no proprio repositorio. A separacao do contrato JSON ja esta definida para permitir extrair uma API ou modelo ML dedicado sem quebrar o app.
 
-## Contratos JSON
+## Arquitetura e Contratos
 
-Nenhuma camada deve alterar estes campos sem acordo do grupo. A fonte unica do contrato IoT -> ML/API e o modelo Pydantic `IoTPayload` em `iot/contract.py`. `risk_level` aceita apenas `baixo`, `medio` ou `alto`. `class_percentage` usa sempre percentual `0-100`, nunca proporcao `0-1`.
+O Orbital Trust utiliza uma arquitetura distribuída e desacoplada:
 
-### IoT -> ML/API
+1.  **IoT (Edge):** Processamento de imagens orbitais/vídeo, extração de métricas de qualidade e inferência visual preliminar.
+2.  **ML/API (Brain):** Recebe o payload do IoT, refina o risco ambiental e gera recomendações operacionais.
+3.  **Mobile (User):** Exibe alertas, histórico e métricas de confiança.
 
-Campos obrigatorios enviados pelo pipeline IoT/CV:
+### Contrato IoT -> ML/API
 
-```json
-{
-  "event_id": "EVT-2024-09-30-001",
-  "timestamp": "2024-09-30T12:00:00Z",
-  "area_id": "BR-MT-001",
-  "source": "Sentinel-2",
-  "detected_class": "queimada",
-  "class_percentage": 42.7,
-  "change_score": 0.68,
-  "cloud_score": 0.04,
-  "shadow_score": 0.12,
-  "brightness_score": 0.46,
-  "blur_score": 0.18,
-  "image_quality": "boa",
-  "cv_confidence": 0.87,
-  "frame_reference": "frame_a.jpg>frame_b.jpg",
-  "algorithm_version": "orbital-cv-v0.2.0"
-}
-```
+A fonte única da verdade para o contrato é o modelo Pydantic `IoTPayload` em `iot/contract.py`.
 
-Fontes validas para frames processados: `Sentinel-2`, `Landsat`, `FIRMS` ou `INPE`. `image_quality` aceita apenas `boa`, `media` ou `baixa`.
-
-`tile_quality` e metadado interno opcional do pipeline para auditoria de fallback e integridade do tile. Ele nao faz parte dos campos obrigatorios IoT -> ML/API e nao e campo do `AlertResponse` consumido pelo Mobile. O campo fica nos payloads gerados pelo `run_pipeline`, como `data/payloads_BR-MT-001.json`, e registra `black_ratio`, `date_used`, `url_used` quando existir, `row`/`col` ou `bbox` quando disponiveis, `source` real do tile, resultado completo de `check_tile_integrity`, `detected_class` e `class_percentage`. Quando ha fallback, `tile_quality.fallback.original_rejected` guarda o tile recusado e `tile_quality.fallback.alternative_used` guarda o tile alternativo usado.
-
-### ML/API -> Mobile
-
-Campos obrigatorios consumidos pelo app:
+Campos obrigatórios enviados pelo pipeline IoT/CV:
 
 ```json
 {
-  "event_id": "EVT-2024-09-30-001",
-  "risk_level": "alto",
-  "analysis_confidence": 0.87,
-  "explanation": "Queimada detectada em 42.7% da area analisada.",
-  "recommendation": "Acionar brigada de combate e notificar autoridades ambientais.",
-  "model_version": "orbital-ml-v1.2.0"
+  "event_id": "UUID/String",
+  "timestamp": "ISO-8601",
+  "area_id": "string",
+  "source": "Sentinel-2 | Landsat | FIRMS | INPE",
+  "detected_class": "queimada | solo_exposto | agua | vegetacao | baixa_visibilidade",
+  "class_percentage": 0-100,
+  "change_score": 0-1,
+  "cloud_score": 0-1,
+  "shadow_score": 0-1,
+  "brightness_score": 0-1,
+  "blur_score": 0-1,
+  "image_quality": "boa | media | baixa",
+  "cv_confidence": 0-1,
+  "frame_reference": "string",
+  "algorithm_version": "string"
 }
 ```
 
-A resposta mobile pode incluir dados complementares para exibicao, como `timestamp`, `detected_class`, `class_percentage`, `change_score`, `source` e `image_url`.
+Fontes válidas para frames processados: `Sentinel-2`, `Landsat`, `FIRMS` ou `INPE`.
 
-`AlertResponse` nao exporta `tile_quality` diretamente. Os mocks gerados por `scripts/generate_mock_data.py` usam a qualidade do tile apenas para selecionar frames validos e publicam no app somente campos tipados do contrato mobile. Para depuracao, o mesmo script grava as evidencias dos tiles em `data/generated_mock_tile_evidence.json`; consulte esse JSON por `event_id` sem poluir a UI principal.
+`tile_quality` é metadado interno opcional do pipeline para auditoria de fallback e integridade do tile. Ele não faz parte dos campos obrigatórios IoT -> ML/API e não é campo do `AlertResponse` consumido pelo Mobile.
 
-Nos mocks do app, `source` descreve a origem exibida do alerta. Quando `image_url` aponta para NASA GIBS com `MODIS_Terra_CorrectedReflectance_TrueColor`, a origem visual correta e `MODIS/GIBS`; o mock tambem deve preencher `visual_product` e `tile_provider`. Use `contract_source` apenas quando houver metadado confiavel ligando o alerta a uma fonte contratual do pipeline (`Sentinel-2`, `Landsat`, `FIRMS` ou `INPE`).
+## Instalação e Execução
 
-## Executando O Pipeline
-
-Instale as dependencias Python usadas pelo pipeline e pelos testes:
+As dependências de todos os módulos Python estão consolidadas no arquivo raiz.
 
 ```bash
-python3 -m pip install -r iot/requirements.txt -r requirements-dev.txt
+# Instalação unificada
+pip install -r requirements.txt
+
+# Execução da Demo de Vídeo (IoT)
+python3 iot/demo_video.py --input seu_video.mp4
+
+# Execução da API
+uvicorn api.main:app --reload
 ```
 
-### Demo IoT Com Video Orbital
+## Mobile
 
-Execute o demo IoT/CV sobre o video de amostra `queimada.mp4`:
+O aplicativo está desenvolvido em React Native com Expo SDK 52 e TypeScript.
 
-```bash
-python3 iot/demo_video.py --input queimada.mp4
-```
-
-A saida padrao do demo e o video segmentado em:
-
-```text
-iot/outputs/demo_segmented.mp4
-```
-
-O demo processa a sequencia de frames do video, aplica segmentacao/metricas OpenCV e gera payloads no contrato IoT -> ML/API usando fonte valida do MVP.
-
-Gere mock data real para o app a partir de tiles orbitais publicos:
-
-```bash
-python3 scripts/generate_mock_data.py
-```
-
-O script busca tiles NASA GIBS, aplica o pipeline de deteccao/qualidade/mudanca e grava `mobile/src/services/generatedMockData.ts`. Ele tambem grava `data/generated_mock_tile_evidence.json` com URL, data, row/col, integridade e resultado do detector por `event_id`. Ele precisa de acesso a internet.
-
-Regenerar payloads JSON de amostra a partir dos frames locais de `data/`:
-
-```bash
-python3 scripts/regenerate_sample_payloads.py
-```
-
-O script executa `run_pipeline("data", "BR-MT-001", "Sentinel-2")` e grava `data/payloads_BR-MT-001.json`. Frames com `black_ratio > 0.15` sao ignorados pelo pipeline quando nao ha fallback valido; payloads mantidos incluem `tile_quality` para rastrear a qualidade do tile usado.
-
-## Executando A API Local
-
-Instale as dependencias Python:
-
-```bash
-python3 -m pip install -r requirements.txt -r requirements-dev.txt
-```
-
-Suba a API FastAPI:
-
-```bash
-uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
-```
+**Telas principais:**
+- **Dashboard:** Visão geral dos alertas ativos.
+- **Detalhes:** Métricas profundas de qualidade e confiança.
+- **Histórico:** Log local de eventos persistido via AsyncStorage.
+- **Configurações:** Controle de modo de dados (API vs Mock).
+- **Sobre:** Informações do projeto Orbital Trust.
 
 A API registra `CORSMiddleware` para permitir chamadas locais do Expo/React Native durante o desenvolvimento do MVP. As origens estao liberadas com `["*"]` neste ambiente academico; em producao, restrinja para os dominios confiaveis.
 

@@ -247,7 +247,7 @@ fi
 # =============================================================================
 # 8. GITIGNORE — limpeza de artefatos de template
 # =============================================================================
-section ".gitignore — artefatos de template Ralph/Athena"
+section ".gitignore — integridade do repositório"
 
 TEMPLATE_DIRS=("skills/" "loops/" "memory/" "AGENTS.md")
 for item in "${TEMPLATE_DIRS[@]}"; do
