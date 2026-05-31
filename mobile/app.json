@@ -1,5 +1,8 @@
 {
   "plugins": [
     "expo-asset"
-  ]
+  ],
+  "android": {
+    "package": "com.anonymous.orbitaltrustmobile"
+  }
 }
