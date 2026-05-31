@@ -1,3 +1,10 @@
+"""Build the required IoT -> ML/API payload contract.
+
+`tile_quality` is internal pipeline metadata used for tile audit/fallback. It is
+not a required contract field and is appended outside `build_payload` only when a
+pipeline caller needs that diagnostic detail.
+"""
+
 from datetime import datetime, timezone
 from typing import Any, Dict
 
@@ -17,6 +24,8 @@ _REQUIRED_FIELDS = (
     "frame_reference",
 )
 
+OPTIONAL_INTERNAL_METADATA_FIELDS = ("tile_quality",)
+
 
 def build_payload(
     event_id: str,
@@ -27,13 +36,20 @@ def build_payload(
     change_score: float,
     frame_reference: str,
 ) -> dict:
+    if not event_id or not event_id.strip():
+        raise ValueError("event_id é obrigatório")
+
+    class_percentage = float(detector_result["class_percentage"])
+    if not 0.0 <= class_percentage <= 100.0:
+        raise ValueError("class_percentage deve estar na escala 0-100")
+
     payload = {
         "event_id": event_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "area_id": area_id,
         "source": source,
         "detected_class": detector_result["detected_class"],
-        "class_percentage": detector_result["class_percentage"],
+        "class_percentage": class_percentage,
         "change_score": change_score,
         "cloud_score": quality_result["cloud_score"],
         "shadow_score": quality_result["shadow_score"],

@@ -69,18 +69,20 @@ export default function AlertDetailScreen(): JSX.Element {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ alignItems: 'center' }}>
-      {alert.image_url && !imageError ? (
-        <Image
-          source={{ uri: alert.image_url }}
-          style={styles.satelliteImage}
-          resizeMode="contain"
-          onError={() => setImageError(true)}
-        />
-      ) : (
-        <View style={styles.imagePlaceholder}>
-          <Text style={[styles.imagePlaceholderText, { fontSize: fontSizes.body }]}>Imagem não disponível</Text>
-        </View>
-      )}
+      <View style={styles.imageContainer}>
+        {alert.image_url && !imageError ? (
+          <Image
+            source={{ uri: alert.image_url }}
+            style={styles.satelliteImage}
+            resizeMode="cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <Text style={[styles.imagePlaceholderText, { fontSize: fontSizes.body }]}>Imagem não disponível</Text>
+          </View>
+        )}
+      </View>
       <View style={[styles.content, { padding: spacing.md, paddingBottom: spacing.lg }]}>
         <View style={styles.badgeRow}>
           <RiskBadge riskLevel={alert.risk_level} />
@@ -104,7 +106,16 @@ export default function AlertDetailScreen(): JSX.Element {
           />
         )}
         {alert.source !== undefined && (
-          <DetailRow label="Fonte" value={alert.source} />
+          <DetailRow label="Fonte do Alerta" value={alert.source} />
+        )}
+        {alert.contract_source !== undefined && (
+          <DetailRow label="Fonte Contratual" value={alert.contract_source} />
+        )}
+        {alert.visual_product !== undefined && (
+          <DetailRow label="Produto Visual" value={alert.visual_product} />
+        )}
+        {alert.tile_provider !== undefined && alert.tile_provider.length > 0 && (
+          <DetailRow label="Tile Provider" value={alert.tile_provider} />
         )}
         <DetailRow label="Data/Hora" value={formattedDate} />
 
@@ -196,18 +207,22 @@ const styles = StyleSheet.create({
     marginTop: 24,
     textAlign: 'right',
   },
+  imageContainer: {
+    width: '100%',
+    maxWidth: 600,
+    aspectRatio: 16 / 9,
+    alignSelf: 'center',
+    backgroundColor: '#0a0e1a',
+    overflow: 'hidden',
+  },
   satelliteImage: {
     width: '100%',
-    aspectRatio: 1,
-    maxWidth: 400,
-    alignSelf: 'center',
+    height: '100%',
   },
   imagePlaceholder: {
     width: '100%',
-    aspectRatio: 1,
-    maxWidth: 400,
-    alignSelf: 'center',
-    backgroundColor: '#e0e0e0',
+    height: '100%',
+    backgroundColor: '#1a1a2e',
     alignItems: 'center',
     justifyContent: 'center',
   },

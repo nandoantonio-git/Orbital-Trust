@@ -1,44 +1,86 @@
 [
   {
-    "event_id": "d2cbdac0-9b8b-4302-9d3b-ae878d213587",
-    "timestamp": "2026-05-29T23:37:02.583967+00:00",
+    "event_id": "f79d2fea-7b63-499f-913f-9d5fde7e3884",
+    "timestamp": "2026-05-30T13:46:14.445621+00:00",
     "area_id": "BR-MT-001",
     "source": "Sentinel-2",
     "detected_class": "baixa_visibilidade",
-    "class_percentage": 0.9078,
+    "class_percentage": 86.72,
     "change_score": 0.427952,
     "cloud_score": 0.6399,
     "shadow_score": 0.0,
     "image_quality": 0.3601,
     "cv_confidence": 0.2074,
-    "frame_reference": "frame_mt_20240601.jpg>frame_mt_20240715.jpg"
+    "frame_reference": "frame_mt_20240601.jpg>frame_mt_20240715.jpg",
+    "tile_quality": {
+      "black_ratio": 0.0,
+      "date_used": "2024-07-15",
+      "source": "Sentinel-2",
+      "check_tile_integrity": {
+        "passes": true,
+        "black_ratio": 0.0,
+        "reason": "ok"
+      },
+      "selected_tile": {
+        "source": "Sentinel-2",
+        "date_used": "2024-07-15",
+        "check_tile_integrity": {
+          "passes": true,
+          "black_ratio": 0.0,
+          "reason": "ok"
+        },
+        "black_ratio": 0.0,
+        "filename": "frame_mt_20240715.jpg",
+        "detected_class": "baixa_visibilidade",
+        "class_percentage": 86.72
+      },
+      "fallback": {
+        "used": false
+      },
+      "detected_class": "baixa_visibilidade",
+      "class_percentage": 86.72
+    }
   },
   {
-    "event_id": "1e7fd29f-4db4-47d9-8736-ed4d9fa8a936",
-    "timestamp": "2026-05-29T23:37:02.596397+00:00",
+    "event_id": "df7c9412-04a4-483b-8752-ed29075b12ee",
+    "timestamp": "2026-05-30T13:46:14.542690+00:00",
     "area_id": "BR-MT-001",
     "source": "Sentinel-2",
     "detected_class": "baixa_visibilidade",
-    "class_percentage": 0.8274,
+    "class_percentage": 79.57,
     "change_score": 0.192194,
     "cloud_score": 0.5222,
     "shadow_score": 0.0935,
     "image_quality": 0.4778,
     "cv_confidence": 0.3006,
-    "frame_reference": "frame_mt_20240715.jpg>frame_mt_20240815.jpg"
-  },
-  {
-    "event_id": "7fc2e19c-af44-4d19-9650-c00923278716",
-    "timestamp": "2026-05-29T23:37:02.607621+00:00",
-    "area_id": "BR-MT-001",
-    "source": "Sentinel-2",
-    "detected_class": "queimada",
-    "class_percentage": 0.6161,
-    "change_score": 0.610552,
-    "cloud_score": 0.1405,
-    "shadow_score": 0.6161,
-    "image_quality": 0.3839,
-    "cv_confidence": 0.2586,
-    "frame_reference": "frame_mt_20240815.jpg>frame_mt_20240930.jpg"
+    "frame_reference": "frame_mt_20240715.jpg>frame_mt_20240815.jpg",
+    "tile_quality": {
+      "black_ratio": 0.09258651733398438,
+      "date_used": "2024-08-15",
+      "source": "Sentinel-2",
+      "check_tile_integrity": {
+        "passes": true,
+        "black_ratio": 0.09258651733398438,
+        "reason": "ok"
+      },
+      "selected_tile": {
+        "source": "Sentinel-2",
+        "date_used": "2024-08-15",
+        "check_tile_integrity": {
+          "passes": true,
+          "black_ratio": 0.09258651733398438,
+          "reason": "ok"
+        },
+        "black_ratio": 0.09258651733398438,
+        "filename": "frame_mt_20240815.jpg",
+        "detected_class": "baixa_visibilidade",
+        "class_percentage": 79.57
+      },
+      "fallback": {
+        "used": false
+      },
+      "detected_class": "baixa_visibilidade",
+      "class_percentage": 79.57
+    }
   }
 ]

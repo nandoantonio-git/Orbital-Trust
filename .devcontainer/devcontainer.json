@@ -16,7 +16,8 @@
     "PYTHONDONTWRITEBYTECODE": "1",
     "PYTHONUNBUFFERED": "1",
     "PIP_DISABLE_PIP_VERSION_CHECK": "1",
-    "CODEX_HOME": "/home/vscode/.codex"
+    "CODEX_HOME": "/home/vscode/.codex",
+    "GEMINI_HOME": "/home/vscode/.gemini"
   },
   "remoteEnv": {
     "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
@@ -24,7 +25,8 @@
     "GEMINI_API_KEY": "${localEnv:GEMINI_API_KEY}"
   },
   "mounts": [
-    "source=codex-home-loom,target=/home/vscode/.codex,type=volume",
+    "source=${localEnv:HOME}/.codex,target=/home/vscode/.codex,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.gemini,target=/home/vscode/.gemini,type=bind,consistency=cached",
     "source=python-cache-loom,target=/home/vscode/.cache/pip,type=volume",
     "source=npm-cache-loom,target=/home/vscode/.npm,type=volume"
   ],

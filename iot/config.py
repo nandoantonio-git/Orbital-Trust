@@ -1,14 +1,11 @@
 from typing import List
 
 SUPPORTED_CLASSES: List[str] = [
-    "deforestation",
-    "fire",
-    "flood",
-    "drought",
-    "urban_expansion",
-    "vegetation",
-    "water",
-    "bare_soil",
+    "vegetacao",
+    "solo_exposto",
+    "agua",
+    "queimada",
+    "baixa_visibilidade",
 ]
 
 SUPPORTED_SOURCES: List[str] = [

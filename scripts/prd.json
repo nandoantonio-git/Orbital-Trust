@@ -42,9 +42,9 @@
       "description": "Como desenvolvedor, quero detectar a classe ambiental dominante em um frame para classificar o tipo de cobertura.",
       "acceptanceCriteria": [
         "Arquivo `iot/detector.py` criado",
-        "Função `detect_class(frame) -> dict` retorna `detected_class` (str) e `class_percentage` (float 0.0–1.0)",
+        "Função `detect_class(frame) -> dict` retorna `detected_class` (str) e `class_percentage` (float 0-100; percentual, nunca proporção 0-1)",
         "Classes suportadas: 'vegetacao', 'solo_exposto', 'agua', 'queimada', 'baixa_visibilidade'",
-        "Usa segmentação HSV do OpenCV",
+        "Usa dominância de canais BGR do OpenCV (contrato atual do detector)",
         "Teste unitário com frame de cor sintética passa",
         "Typecheck passes"
       ],
@@ -568,6 +568,465 @@
       "passes": true,
       "fix": "",
       "notes": "Gate: typescript — depende de US-028"
+    },
+    {
+      "id": "US-034",
+      "title": "Corrigir detector: baixa_visibilidade como pré-filtro de nuvens",
+      "description": "Como desenvolvedor, quero que o detector avalie cobertura de nuvens antes de classificar a classe ambiental para que imagens nubladas não sejam erroneamente classificadas como vegetação ou solo exposto.",
+      "acceptanceCriteria": [
+        "Arquivo `iot/detector.py` modificado",
+        "Função `detect_class(frame)` recebe parâmetro opcional `cloud_score: float = 0.0`",
+        "Se `cloud_score > 0.4`, retorna imediatamente `{'detected_class': 'baixa_visibilidade', 'class_percentage': cloud_score * 100}` sem rodar a classificação BGR",
+        "Se `cloud_score <= 0.4`, executa a classificação por dominância BGR normalmente",
+        "`baixa_visibilidade` é tratada como classe prioritária e não compete com classes ambientais posteriores",
+        "Função `run_pipeline` em `iot/pipeline.py` passa `cloud_score` de `compute_quality_metrics` para `detect_class`",
+        "Teste unitário: frame branco (cloud_score=0.8) retorna baixa_visibilidade sem rodar a classificação BGR",
+        "Teste unitário: frame verde (cloud_score=0.1) retorna vegetacao",
+        "Typecheck passes"
+      ],
+      "priority": 34,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python"
+    },
+    {
+      "id": "US-035",
+      "title": "Atualizar tiles do mock data com coordenadas geográficas adequadas por classe",
+      "description": "Como desenvolvedor, quero que cada alerta do mock data use uma imagem de satélite que realmente corresponda à classe detectada para que o app seja visualmente coerente.",
+      "acceptanceCriteria": [
+        "Arquivo `mobile/src/services/mockData.ts` atualizado",
+        "EVT-2024-001 (queimada, alto): mantém `2024-09-30/250m/7/37/44` — já correto",
+        "EVT-2024-002 (solo_exposto, alto): tile `2024-08-20/250m/7/33/49` — Sertão nordestino, semi-árido, baixa nebulosidade",
+        "EVT-2024-003 (vegetacao, medio): tile `2024-07-15/250m/7/31/41` — Floresta Amazônica, Pará",
+        "EVT-2024-004 (agua, medio): mantém `2024-06-01/250m/7/37/44` — já correto (Pantanal)",
+        "EVT-2024-005 (vegetacao, baixo): tile `2024-05-20/250m/7/31/42` — Floresta Amazônica, tile adjacente",
+        "EVT-2024-006 (solo_exposto, baixo): tile `2024-10-15/250m/7/33/50` — Sertão, tile adjacente",
+        "Todas as 6 URLs seguem o padrão `https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/{date}/250m/7/{row}/{col}.jpg`",
+        "Typecheck passes"
+      ],
+      "priority": 35,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-036",
+      "title": "Função de verificação de integridade do tile (pixels pretos)",
+      "description": "Como desenvolvedor, quero uma função que meça a razão de pixels pretos em um frame para que o pipeline saiba se o tile tem cobertura de satélite válida.",
+      "acceptanceCriteria": [
+        "Arquivo `iot/tile_quality.py` criado",
+        "Constante `BLACK_RATIO_THRESHOLD = 0.15` definida no módulo",
+        "Função `check_tile_integrity(frame: np.ndarray) -> dict` retorna `{'passes': bool, 'black_ratio': float, 'reason': str}`",
+        "Pixel preto definido como todos os canais BGR <= 10",
+        "`passes=True` quando `black_ratio <= 0.15`, `passes=False` quando `black_ratio > 0.15`",
+        "`reason` descreve o resultado: ex. `'black_ratio=0.42 exceeds threshold 0.15'` ou `'ok'`",
+        "Teste unitário: frame 100% preto → passes=False, black_ratio=1.0",
+        "Teste unitário: frame 100% colorido → passes=True, black_ratio=0.0",
+        "Teste unitário: frame com 15% pixels pretos → passes=True",
+        "Teste unitário: frame com 16% pixels pretos → passes=False",
+        "Typecheck passes"
+      ],
+      "priority": 36,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python"
+    },
+    {
+      "id": "US-037",
+      "title": "Buscador de tile alternativo por data (±3 dias)",
+      "description": "Como desenvolvedor, quero uma função que busque um tile alternativo de data próxima quando o tile original falha no filtro de qualidade, para que o pipeline sempre tenha um frame válido.",
+      "acceptanceCriteria": [
+        "Arquivo `iot/tile_fetcher.py` criado",
+        "Função `fetch_best_tile(url_template: str, base_date: str, max_days_offset: int = 3) -> tuple` retorna `(frame, date_used)` ou `(None, None)`",
+        "`url_template` usa `{date}` como placeholder: ex. `'https://gibs.../default/{date}/250m/7/37/44.jpg'`",
+        "Tenta datas em ordem: base_date, -1d, +1d, -2d, +2d, -3d, +3d",
+        "Para cada data: faz download via HTTPS com certifi, chama `check_tile_integrity`, retorna o primeiro que passar",
+        "Loga cada tentativa: `[tile_fetcher] 2024-09-30: black_ratio=0.42 SKIP`",
+        "Retorna `(None, None)` sem exceção se todas as 7 datas falharem",
+        "Usa `ssl` + `certifi` (mesmo padrão de `stac_client.py`)",
+        "Teste unitário com mock HTTP: 2 tiles pretos, 1 colorido na 3ª tentativa → retorna frame da 3ª",
+        "Typecheck passes"
+      ],
+      "priority": 37,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python — depende de US-036"
+    },
+    {
+      "id": "US-038",
+      "title": "Integrar filtro de qualidade no pipeline IoT principal",
+      "description": "Como desenvolvedor, quero que o pipeline verifique a integridade de cada frame antes de processá-lo e busque alternativas automaticamente, sem alterar a interface pública de run_pipeline.",
+      "acceptanceCriteria": [
+        "`iot/pipeline.py` modificado: antes de processar cada frame, chama `check_tile_integrity`",
+        "Se o frame falhar: chama `fetch_best_tile` com a URL template do tile original",
+        "Se `fetch_best_tile` retornar `None`: frame ignorado, loga `[pipeline] {filename}: sem tile válido, ignorando`",
+        "Se `fetch_best_tile` retornar frame alternativo: usa esse frame e atualiza `frame_reference` para incluir a data usada, ex: `'frame_mt_20240601.jpg>alt:2024-06-03'`",
+        "Payload inclui campo `tile_quality: {'black_ratio': float, 'date_used': str}` com metadados da seleção",
+        "Assinatura de `run_pipeline(frames_folder, area_id, source)` permanece idêntica — sem breaking changes",
+        "Teste de integração: pasta com 1 tile preto + 1 tile colorido → gera apenas 1 payload (tile colorido)",
+        "Typecheck passes"
+      ],
+      "priority": 38,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python — depende de US-036 e US-037"
+    },
+    {
+      "id": "US-039",
+      "title": "Script de descoberta de tiles válidos por classe e região brasileira",
+      "description": "Como desenvolvedor, quero um script que busque automaticamente tiles MODIS sem área preta que correspondam a uma classe ambiental específica em coordenadas reais do Brasil, para que o mock data seja gerado a partir de dados reais e não inventados.",
+      "acceptanceCriteria": [
+        "Arquivo `scripts/find_tiles.py` criado",
+        "Função `find_tile_for_class(target_class: str, row: int, col: int, start_date: str, max_days: int = 90) -> dict | None` retorna `{'url': str, 'date': str, 'detected_class': str, 'class_percentage': float, 'image_quality': float}` ou None",
+        "Coordenadas GIBS corretas para regiões brasileiras definidas como constante `BRAZIL_REGIONS`: Mato Grosso (row=73, col=88), Pantanal (row=76, col=87), Pará Amazônia (row=67, col=91), Sertão NE (row=68, col=99)",
+        "Usa `check_tile_integrity` de `iot/tile_quality.py` para filtrar tiles com área preta",
+        "Usa `detect_class` de `iot/detector.py` para verificar se o tile corresponde à classe desejada",
+        "Script executável via `python3 scripts/find_tiles.py --class queimada --region mato_grosso --start 2024-08-01`",
+        "Output: JSON com url, date, detected_class, class_percentage, image_quality",
+        "Typecheck passes"
+      ],
+      "priority": 39,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python"
+    },
+    {
+      "id": "US-040",
+      "title": "Gerar mock data real a partir do pipeline IoT com tiles das coordenadas corretas",
+      "description": "Como desenvolvedor, quero que o mock data do app mobile seja gerado pelo pipeline IoT real com tiles das coordenadas corretas do Brasil, para que os valores exibidos no dashboard correspondam ao que é visível na imagem de satélite.",
+      "acceptanceCriteria": [
+        "Script `scripts/generate_mock_data.py` criado",
+        "Busca 1 tile válido para cada classe: queimada (Mato Grosso, ago-out 2024), solo_exposto (Sertão NE, jul-set 2024), vegetacao (Pará Amazônia, jun-ago 2024), agua (Pantanal, jan-mar 2024)",
+        "Para cada tile encontrado: executa `detect_class`, `compute_quality_metrics` e `compute_change_score` (comparando com tile do dia anterior)",
+        "Gera arquivo `mobile/src/services/generatedMockData.ts` com objetos `AlertResponse` cujos campos batem com o output real do pipeline",
+        "`image_url` de cada alerta aponta para o tile verificado e sem área preta",
+        "`detected_class` no mock corresponde exatamente ao que o CV detectou no tile",
+        "`class_percentage` e `image_quality` são os valores reais do pipeline, não inventados",
+        "`risk_level` derivado de regra simples: change_score > 0.5 → alto, > 0.2 → medio, caso contrário → baixo",
+        "`DashboardScreen.tsx` e `alertService.ts` atualizados para importar de `generatedMockData.ts`",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 40,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript — depende de US-039"
+    },
+    {
+      "id": "US-041",
+      "title": "Recalibrar detector: adotar dominância de canal BGR para imagens MODIS reais",
+      "description": "Como desenvolvedor, quero que o detector use dominância de canal BGR para que funcione com imagens MODIS reais, que têm neblina atmosférica e saturação reduzida incompatíveis com thresholds por matiz/saturação.",
+      "acceptanceCriteria": [
+        "Arquivo `iot/detector.py` reescrito com lógica baseada em canais BGR do OpenCV",
+        "`baixa_visibilidade`: mean(B,G,R) > 160 AND std(B,G,R) < 20 — brilho alto e acromático (nuvens/neblina)",
+        "`queimada`: mean(B,G,R) < 40 — muito escuro (área carbonizada)",
+        "`agua`: B > R*1.05 AND B > G*1.05 AND mean(B,G,R) > 30 — canal azul dominante",
+        "`vegetacao`: G > R*1.02 AND G > B*1.02 AND mean > 30 AND mean < 160 — canal verde dominante, brilho médio",
+        "`solo_exposto`: R >= G AND R > B*1.1 AND mean > 50 — canal vermelho dominante ou igual ao verde, sem azul",
+        "Ordem de verificação: baixa_visibilidade → queimada → agua → vegetacao → solo_exposto (fallback)",
+        "Pixel é classificado individualmente; classe dominante = maior contagem de pixels",
+        "Teste unitário: frame azul (150,100,50 BGR) → agua",
+        "Teste unitário: frame verde (50,150,50 BGR) → vegetacao",
+        "Teste unitário: frame escuro (20,20,20 BGR) → queimada",
+        "Teste unitário: frame branco-acinzentado (200,200,200 BGR) → baixa_visibilidade",
+        "Teste unitário: frame marrom (80,100,130 BGR) → solo_exposto",
+        "Typecheck passes"
+      ],
+      "priority": 41,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python — substitui a lógica anterior por dominância BGR"
+    },
+    {
+      "id": "US-042",
+      "title": "Alinhar constantes de domínio com o contrato ambiental",
+      "description": "Como desenvolvedor, quero que as constantes compartilhadas do módulo IoT usem as mesmas classes e fontes do contrato JSON para evitar divergência silenciosa entre pipeline, testes e app mobile.",
+      "acceptanceCriteria": [
+        "`iot/config.py` define `SUPPORTED_CLASSES` exatamente como: `vegetacao`, `solo_exposto`, `agua`, `queimada`, `baixa_visibilidade`",
+        "`iot/config.py` mantém `SUPPORTED_SOURCES` exatamente como: `Sentinel-2`, `Landsat`, `FIRMS`, `INPE`",
+        "Nenhum módulo IoT continua usando classes ambientais antigas em inglês como `deforestation`, `fire`, `flood`, `drought`, `urban_expansion`, `vegetation`, `water`, `bare_soil`",
+        "Teste unitário valida que `SUPPORTED_CLASSES` cobre todas as classes retornadas por `detect_class`",
+        "Teste unitário valida que `SUPPORTED_SOURCES` cobre todas as fontes aceitas pelo contrato",
+        "Typecheck passes"
+      ],
+      "priority": 42,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python — pendente; retomar porque o código ainda diverge do contrato"
+    },
+    {
+      "id": "US-043",
+      "title": "Documentar e validar o detector BGR como decisão técnica atual",
+      "description": "Como desenvolvedor, quero remover a ambiguidade entre o critério antigo de HSV e a implementação atual por dominância BGR para que o detector tenha contrato técnico explícito e testável.",
+      "acceptanceCriteria": [
+        "Comentários, docstrings e PRD deixam claro que `iot/detector.py` usa dominância de canais BGR para imagens MODIS reais",
+        "Nenhum acceptance criterion ativo ou documentação técnica afirma que o detector atual usa segmentação HSV",
+        "`detect_class(frame)` valida formato mínimo do frame e levanta `ValueError` para entrada vazia, sem 3 canais ou não-numérica",
+        "Teste unitário cobre entrada inválida: array vazio",
+        "Teste unitário cobre entrada inválida: frame em escala de cinza sem 3 canais",
+        "Testes existentes de classificação continuam passando",
+        "Typecheck passes"
+      ],
+      "priority": 43,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python — depende de US-041"
+    },
+    {
+      "id": "US-044",
+      "title": "Corrigir fallback de tile local por data compacta no pipeline",
+      "description": "Como desenvolvedor, quero que o fallback de tiles funcione também com arquivos locais nomeados com datas compactas YYYYMMDD para que `run_pipeline` consiga substituir frames inválidos durante testes e execuções offline.",
+      "acceptanceCriteria": [
+        "`iot/pipeline.py` deixa de gerar template local incompatível entre `YYYYMMDD` e `YYYY-MM-DD`",
+        "Fallback local encontra arquivos alternativos com datas compactas no nome, ex: `frame_mt_20240603.jpg`",
+        "Fallback remoto com URL `{date}` em formato `YYYY-MM-DD` continua suportado",
+        "Quando um tile alternativo local é usado, `frame_reference` inclui `alt:{date_used}` com data normalizada `YYYY-MM-DD`",
+        "`tile_quality.date_used` sempre usa formato `YYYY-MM-DD`",
+        "Teste unitário cobre frame inválido em `20240601` substituído por arquivo local válido em `20240603`",
+        "Teste unitário cobre cenário sem alternativo local e confirma que o frame é ignorado sem exceção",
+        "Typecheck passes"
+      ],
+      "priority": 44,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python — depende de US-038"
+    },
+    {
+      "id": "US-045",
+      "title": "Higienizar arquivos gerados e caches no controle de versão",
+      "description": "Como mantenedor, quero que caches locais e artefatos gerados pelo Expo/Python fiquem fora do Git para manter o status do projeto limpo e revisar apenas mudanças relevantes.",
+      "acceptanceCriteria": [
+        "`.gitignore` inclui `.expo/` e `mobile/.expo/`",
+        "`.gitignore` mantém `__pycache__/`, `.pytest_cache/`, `.venv/`, `node_modules/` e dados sensíveis ignorados",
+        "Arquivos novos de cache Expo não aparecem em `git status --short` após a limpeza",
+        "Nenhum arquivo de código-fonte, teste, dado de amostra versionável ou story é ignorado por engano",
+        "Documentar em nota curta no README ou comentário do `.gitignore` que `generatedMockData.ts` é versionado quando usado pelo app",
+        "Typecheck passes"
+      ],
+      "priority": 45,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: bash"
+    },
+    {
+      "id": "US-046",
+      "title": "Atualizar README para apresentar o produto Orbital Trust",
+      "description": "Como avaliador do MVP, quero que o README descreva o Orbital Trust e não apenas o Athena Framework para entender rapidamente domínio, arquitetura, execução e validação do projeto.",
+      "acceptanceCriteria": [
+        "`README.md` começa com título `# Orbital Trust`",
+        "README descreve o objetivo do MVP: transformar imagens orbitais abertas em alertas ambientais acionáveis",
+        "README lista a estrutura real do projeto: `iot/`, `mobile/`, `scripts/`, `data/`, `tests/`",
+        "README documenta o contrato IoT → ML/API e ML/API → Mobile com os campos obrigatórios",
+        "README documenta comandos de validação: `python3 -m pytest tests/ -q --tb=short`, `npx tsc --noEmit` e `bash scripts/gate.sh <target>`",
+        "README documenta como executar o app Expo e como gerar mock data real",
+        "Conteúdo do Ralph/Athena permanece em seção secundária, caso ainda seja útil para automação",
+        "Typecheck passes"
+      ],
+      "priority": 46,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: bash"
+    },
+    {
+      "id": "US-047",
+      "title": "Garantir mock mobile com cobertura mínima de alertas e riscos",
+      "description": "Como desenvolvedor mobile, quero que o mock data gerado mantenha volume e variedade suficientes para testar dashboard, histórico e detalhe sem depender de API real.",
+      "acceptanceCriteria": [
+        "`mobile/src/services/generatedMockData.ts` contém pelo menos 5 objetos `AlertResponse`",
+        "Mock gerado cobre os três `risk_level`: `baixo`, `medio`, `alto`",
+        "Mock gerado cobre pelo menos 4 classes entre: `vegetacao`, `solo_exposto`, `agua`, `queimada`, `baixa_visibilidade`",
+        "`scripts/generate_mock_data.py` falha com mensagem clara se não conseguir gerar a cobertura mínima",
+        "Cada alerta possui `event_id`, `timestamp`, `detected_class`, `risk_level`, `analysis_confidence`, `explanation`, `recommendation`, `model_version`, `class_percentage`, `change_score`, `source`, `image_url`",
+        "Teste unitário valida cobertura mínima do arquivo gerado ou da função de geração",
+        "Typecheck passes"
+      ],
+      "priority": 47,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript — depende de US-040"
+    },
+    {
+      "id": "US-048",
+      "title": "Preparar alertService para alternar entre mock e API real",
+      "description": "Como desenvolvedor mobile, quero que a camada de serviço consiga usar mock local por padrão e API real por configuração simples, sem mudar as telas do app.",
+      "acceptanceCriteria": [
+        "`mobile/src/services/alertService.ts` usa mock local por padrão",
+        "`BASE_URL` deixa de ser constante morta e passa a ser usada quando o modo API estiver habilitado",
+        "Modo API pode ser habilitado por variável Expo pública ou constante configurável simples",
+        "`getAlerts()` faz `fetch` em `${BASE_URL}/alerts` no modo API e retorna `AlertResponse[]` validando formato mínimo",
+        "`getAlertById(id)` faz `fetch` em `${BASE_URL}/alerts/${id}` no modo API e retorna `AlertResponse | null`",
+        "Falha de rede no modo API retorna erro claro sem quebrar tipagem",
+        "Telas existentes continuam importando apenas `getAlerts` e `getAlertById`",
+        "Typecheck passes"
+      ],
+      "priority": 48,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript"
+    },
+    {
+      "id": "US-049",
+      "title": "Corrigir fallback remoto de tiles inválidos no pipeline",
+      "description": "Como desenvolvedor, quero que o pipeline consiga buscar um tile remoto alternativo real quando um frame falhar no filtro de área preta, para evitar falsos positivos e perda silenciosa de alertas.",
+      "acceptanceCriteria": [
+        "`iot/pipeline.py` deixa de chamar `fetch_best_tile` com URL template vazia",
+        "O pipeline recebe, deriva ou carrega um `url_template` real contendo `{date}` quando o frame original veio de fonte remota",
+        "`fetch_best_tile(url_template, base_date)` tenta datas em ±3 dias e retorna somente frame que passa em `check_tile_integrity`",
+        "Quando o fallback remoto encontra tile válido, `frame_reference` registra `alt:{date_used}` e a URL usada fica rastreável",
+        "Quando não há template remoto disponível, o pipeline registra motivo claro e ignora o frame inválido sem tentar download inválido",
+        "Teste unitário cobre frame inválido com template remoto válido e confirma substituição por tile alternativo",
+        "Teste unitário cobre frame inválido sem template remoto e confirma skip sem exceção",
+        "Typecheck passes"
+      ],
+      "priority": 49,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python — depende de US-036, US-037, US-038 e US-044"
+    },
+    {
+      "id": "US-050",
+      "title": "Separar fonte orbital de produto visual usado no mock",
+      "description": "Como desenvolvedor, quero distinguir a fonte declarada do contrato (`Sentinel-2`, `Landsat`, `FIRMS`, `INPE`) do produto visual efetivamente exibido (`MODIS/GIBS`), para preservar rastreabilidade técnica no app e nos payloads.",
+      "acceptanceCriteria": [
+        "Definir campos explícitos para diferenciar `source` contratual e produto visual ou tile provider, sem quebrar os campos obrigatórios existentes",
+        "`scripts/generate_mock_data.py` não declara `source: Sentinel-2` ou `source: Landsat` quando a imagem exibida for claramente MODIS/GIBS sem metadado correspondente",
+        "`mobile/src/services/generatedMockData.ts` passa a refletir a origem real ou metadado complementar do tile usado",
+        "Textos de explicação no app não afirmam fonte Sentinel/Landsat quando a URL aponta para `MODIS_Terra_CorrectedReflectance_TrueColor`",
+        "Documentação do README ou `docs/orbital-data.md` explica a diferença entre fonte ambiental contratual e produto visual de demonstração",
+        "Testes validam que mocks gerados mantêm fonte e URL semanticamente coerentes",
+        "Typecheck passes"
+      ],
+      "priority": 50,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript — envolve script Python e contrato mobile; validar também gate python"
+    },
+    {
+      "id": "US-051",
+      "title": "Regenerar payloads de amostra removendo tile preto contaminado",
+      "description": "Como avaliador do MVP, quero que `data/payloads_BR-MT-001.json` seja regenerado com o pipeline atual para não manter falso positivo produzido por tile com grande área preta.",
+      "acceptanceCriteria": [
+        "`data/frame_mt_20240930.jpg` é identificado como inválido por `check_tile_integrity` por possuir `black_ratio` acima do limite",
+        "`data/payloads_BR-MT-001.json` é regenerado sem payload que classifique o tile preto como `queimada`",
+        "Payloads regenerados incluem `tile_quality` quando este metadado for mantido no output do pipeline",
+        "A quantidade de payloads gerados a partir de `data/` reflete apenas frames válidos ou substituídos por fallback válido",
+        "Teste ou script de verificação confirma que nenhum payload de amostra referencia frame com `black_ratio > 0.15` sem marcação de skip/fallback",
+        "Documentar no README ou docs como regenerar os payloads de amostra",
+        "Typecheck passes"
+      ],
+      "priority": 51,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python — depende de US-049 para fallback remoto completo"
+    },
+    {
+      "id": "US-052",
+      "title": "Padronizar escala de class_percentage no contrato",
+      "description": "Como desenvolvedor, quero que `class_percentage` tenha uma escala única em todas as camadas para evitar confusão entre proporção `0.0–1.0` e percentual `0–100`.",
+      "acceptanceCriteria": [
+        "Decidir e documentar percentual 0-100 como escala única para `class_percentage` no contrato IoT, ML/API e Mobile",
+        "`iot/detector.py`, `iot/payload.py`, `scripts/generate_mock_data.py` e tipos mobile seguem a mesma escala",
+        "`README.md`, `docs/orbital-data.md` e `scripts/prd.json` deixam de apresentar descrições conflitantes sobre `class_percentage`",
+        "UI mobile formata o valor corretamente sem converter duas vezes",
+        "Testes Python validam a escala retornada por `detect_class` e payloads IoT",
+        "TypeScript valida mocks com a escala definida",
+        "Typecheck passes"
+      ],
+      "priority": 52,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python + typescript — mudança de contrato semântico"
+    },
+    {
+      "id": "US-053",
+      "title": "Fortalecer verificação de integridade de tiles orbitais",
+      "description": "Como desenvolvedor, quero que o filtro de qualidade detecte não só pixels pretos isolados, mas também faixas pretas contíguas e baixa informação visual típica de tile sem cobertura orbital.",
+      "acceptanceCriteria": [
+        "`iot/tile_quality.py` mantém `black_ratio`, mas adiciona métricas como maior componente preto contíguo, proporção de bordas pretas ou baixa variância/entropia visual",
+        "Tiles com faixa preta grande em lateral ou diagonal falham mesmo quando o `black_ratio` isolado ficar próximo do limite",
+        "Sombras naturais pequenas não são rejeitadas automaticamente quando houver informação visual suficiente no restante do tile",
+        "O retorno de `check_tile_integrity(frame)` continua simples e inclui `passes`, `black_ratio` e `reason`",
+        "`reason` explica qual métrica reprovou o tile",
+        "Testes unitários cobrem tile 100% preto, 16% preto distribuído, faixa lateral preta, faixa diagonal preta e frame escuro porém válido",
+        "Typecheck passes"
+      ],
+      "priority": 53,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python — melhora semântica de US-036"
+    },
+    {
+      "id": "US-054",
+      "title": "Formalizar tile_quality como metadado interno ou contrato mobile",
+      "description": "Como desenvolvedor, quero decidir se `tile_quality` faz parte do contrato exibido no app ou é apenas metadado interno do pipeline, para evitar campos extras sem tipo definido.",
+      "acceptanceCriteria": [
+        "Decisão registrada no PRD ou documentação: `tile_quality` é interno ao pipeline ou campo opcional do contrato consumido pelo Mobile",
+        "Se for contrato mobile, `mobile/src/types/alert.ts` define interface explícita para `tile_quality` ou equivalente",
+        "Se for interno, `scripts/generate_mock_data.py` não exporta `tile_quality` para `AlertResponse` sem transformação adequada",
+        "`iot/payload.py` e docs explicam se `tile_quality` é fora do contrato obrigatório ou extensão opcional",
+        "Testes garantem que campos obrigatórios do contrato não são quebrados",
+        "Typecheck passes"
+      ],
+      "priority": 54,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: typescript — validar impacto em Python se o payload mudar"
+    },
+    {
+      "id": "US-055",
+      "title": "Criar API mínima para transformar payload IoT em alerta mobile",
+      "description": "Como desenvolvedor de integração, quero uma API mínima que receba o payload IoT e retorne `AlertResponse`, para materializar a camada ML/API que hoje está apenas mockada.",
+      "acceptanceCriteria": [
+        "Criar diretório `api/` com FastAPI simples ou Node/Express, seguindo a stack escolhida pelo grupo",
+        "Endpoint `POST /alerts/analyze` recebe payload IoT com os campos obrigatórios",
+        "Endpoint retorna `AlertResponse` com `event_id`, `risk_level`, `analysis_confidence`, `explanation`, `recommendation` e `model_version`",
+        "`risk_level` é derivado por heurística explícita baseada em `change_score`, `detected_class`, `image_quality` e `cv_confidence` até existir modelo ML real",
+        "Validação rejeita `risk_level` fora de `baixo`, `medio`, `alto` e payload IoT incompleto",
+        "Testes unitários cobrem baixo, médio, alto e payload inválido",
+        "README documenta como rodar a API localmente",
+        "Typecheck passes"
+      ],
+      "priority": 55,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python ou typescript — escolher implementação simples antes de iniciar"
+    },
+    {
+      "id": "US-056",
+      "title": "Persistir evidências dos tiles usados na análise",
+      "description": "Como auditor ambiental, quero que cada alerta mantenha evidências mínimas do tile usado, para rastrear data, URL, coordenadas, qualidade e resultado do detector.",
+      "acceptanceCriteria": [
+        "Payloads ou metadados internos registram URL do tile, data usada, row/col ou bbox quando disponíveis",
+        "Registrar `black_ratio`, resultado completo de `check_tile_integrity`, `detected_class`, `class_percentage` e `source` real do tile",
+        "Quando houver fallback, registrar tile original rejeitado e tile alternativo usado",
+        "Scripts de mock preservam evidências suficientes para depuração sem poluir a UI principal",
+        "Documentar onde as evidências ficam salvas e como consultá-las",
+        "Testes cobrem caso com fallback e confirmam que a evidência contém original e alternativo",
+        "Typecheck passes"
+      ],
+      "priority": 56,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python — pode impactar geração de mock mobile"
+    },
+    {
+      "id": "US-057",
+      "title": "Criar gate semântico para qualidade de dados orbitais",
+      "description": "Como mantenedor, quero um gate que valide os dados de amostra e mocks gerados além da compilação, para impedir regressões como tiles pretos, fontes incoerentes e contratos divergentes.",
+      "acceptanceCriteria": [
+        "Criar script simples em `scripts/` para validar frames locais, payloads de amostra e mock mobile gerado",
+        "Gate falha se qualquer frame usado por payload versionado tiver `black_ratio > 0.15` sem fallback registrado",
+        "Gate falha se `source` declarado for semanticamente incoerente com a URL do tile quando essa informação for verificável",
+        "Gate falha se `class_percentage` estiver fora da escala definida na US-052",
+        "Gate falha se mocks mobile não cobrirem volume mínimo, classes mínimas e os três níveis de risco",
+        "`scripts/gate.sh` documenta ou integra esse gate para alvo de dados/mock",
+        "Testes cobrem pelo menos um caso de falha por tile preto e um caso válido",
+        "Typecheck passes"
+      ],
+      "priority": 57,
+      "passes": true,
+      "fix": "",
+      "notes": "Gate: python + bash — consolida verificações semânticas do MVP"
     }
   ]
 }

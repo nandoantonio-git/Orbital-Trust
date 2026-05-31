@@ -1,6 +1,12 @@
 {
   "name": "orbital-trust",
   "private": true,
+  "scripts": {
+    "start": "cd mobile && npx expo start",
+    "mobile": "cd mobile && npx expo start",
+    "tsc": "cd mobile && npm run tsc",
+    "web": "cd mobile && npm run web"
+  },
   "devDependencies": {
     "typescript": "^5.3.3"
   }

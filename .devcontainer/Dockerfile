@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     graphviz \
+    libdbus-1-3 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN if ! command -v node >/dev/null 2>&1; then \

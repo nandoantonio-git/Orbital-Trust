@@ -12,8 +12,7 @@ def test_copernicus_stac_url_defined():
 
 
 def test_supported_sources_contains_required():
-    required = {"Sentinel-2", "Landsat", "FIRMS", "INPE"}
-    assert required.issubset(set(SUPPORTED_SOURCES))
+    assert SUPPORTED_SOURCES == ["Sentinel-2", "Landsat", "FIRMS", "INPE"]
 
 
 def test_supported_sources_not_empty():

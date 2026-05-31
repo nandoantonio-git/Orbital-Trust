@@ -1,34 +1,59 @@
 from typing import Any, Dict
 
-import cv2
 import numpy as np
 
-# HSV ranges (OpenCV: H 0-179, S 0-255, V 0-255)
-_HSV_RANGES: Dict[str, list] = {
-    "baixa_visibilidade": [((0,   0,  150), (179,  40, 255))],  # low saturation, bright
-    "queimada":           [((0,   0,    0), (179, 255,  50))],  # very dark (charred)
-    "agua":               [((90, 40,   30), (130, 255, 255))],  # blue hues
-    "vegetacao":          [((35, 40,   40), (85,  255, 255))],  # green hues
-    "solo_exposto":       [((10, 30,   50), (30,  220, 255))],  # brown/tan hues
-}
+
+def _validate_bgr_frame(frame: np.ndarray) -> None:
+    if not isinstance(frame, np.ndarray):
+        raise ValueError("frame must be a numpy ndarray")
+    if frame.size == 0:
+        raise ValueError("frame must not be empty")
+    if frame.ndim != 3 or frame.shape[2] != 3:
+        raise ValueError("frame must have shape (height, width, 3) in BGR order")
+    if not np.issubdtype(frame.dtype, np.number):
+        raise ValueError("frame must contain numeric pixel values")
 
 
 def detect_class(frame: np.ndarray) -> Dict[str, Any]:
-    """Return dominant environmental class and its pixel coverage fraction."""
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    """Return the dominant MODIS class and its area percentage on a 0-100 scale."""
+    _validate_bgr_frame(frame)
+
+    b = frame[:, :, 0].astype(float)
+    g = frame[:, :, 1].astype(float)
+    r = frame[:, :, 2].astype(float)
+
+    mean_px = (b + g + r) / 3.0
+    # Per-pixel channel spread separates bright neutral haze from surface colors.
+    std_px = np.sqrt(((b - mean_px) ** 2 + (g - mean_px) ** 2 + (r - mean_px) ** 2) / 3.0)
+
+    # MODIS true-color frames arrive through OpenCV as BGR.
+    bv = (mean_px > 160) & (std_px < 20)
+    remaining = ~bv
+
+    q = remaining & (mean_px < 40)
+    remaining &= ~q
+
+    a = remaining & (b > r * 1.05) & (b > g * 1.05) & (mean_px > 30)
+    remaining &= ~a
+
+    v = remaining & (g > r * 1.02) & (g > b * 1.02) & (mean_px > 30) & (mean_px < 160)
+    remaining &= ~v
+
+    s = remaining & (r >= g) & (r > b * 1.1) & (mean_px > 50)
+
+    counts: Dict[str, int] = {
+        "baixa_visibilidade": int(np.count_nonzero(bv)),
+        "queimada": int(np.count_nonzero(q)),
+        "agua": int(np.count_nonzero(a)),
+        "vegetacao": int(np.count_nonzero(v)),
+        "solo_exposto": int(np.count_nonzero(s)),
+    }
+
+    dominant = max(counts, key=lambda c: counts[c])
     total = frame.shape[0] * frame.shape[1]
-
-    counts: Dict[str, int] = {}
-    for cls, ranges in _HSV_RANGES.items():
-        mask = np.zeros(frame.shape[:2], dtype=np.uint8)
-        for lo, hi in ranges:
-            mask |= cv2.inRange(hsv, np.array(lo, dtype=np.uint8), np.array(hi, dtype=np.uint8))
-        counts[cls] = int(np.count_nonzero(mask))
-
-    dominant = max(counts, key=lambda c: counts[c]) if any(counts.values()) else "baixa_visibilidade"
-    pct = counts[dominant] / total if total > 0 else 0.0
+    pct = (counts[dominant] / total * 100.0) if total > 0 else 0.0
 
     return {
         "detected_class": dominant,
-        "class_percentage": round(float(pct), 4),
+        "class_percentage": round(float(pct), 2),
     }

@@ -25,6 +25,8 @@ fi
 
 if [[ -z "$GATE_TYPE" ]]; then
   case "$TARGET" in
+    data|mock|mocks|data/mock|data-mock) GATE_TYPE="data" ;;
+    *payloads_*.json|*generated_mock_tile_evidence.json|*generatedMockData.ts) GATE_TYPE="data" ;;
     *.py)   GATE_TYPE="python" ;;
     *.ts|*.tsx|*.jsx)   GATE_TYPE="typescript" ;;
     *.js)               GATE_TYPE="javascript" ;;
@@ -68,6 +70,10 @@ case "$GATE_TYPE" in
 
   bash)
     bash -n "$TARGET" 2>&1 || { echo "bash syntax check falhou: $TARGET" >&2; exit 1; }
+    ;;
+
+  data)
+    python3 scripts/semantic_data_gate.py "$TARGET" 2>&1 || { echo "semantic data gate falhou: $TARGET" >&2; exit 1; }
     ;;
 
   go)

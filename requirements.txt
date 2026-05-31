@@ -1,2 +1,2 @@
-# requirements.txt — adicione as dependências do seu projeto
-# Exemplo ML: ver requirements-example-ml.txt
+fastapi
+uvicorn

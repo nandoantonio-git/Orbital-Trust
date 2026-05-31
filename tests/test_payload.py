@@ -2,7 +2,7 @@ import pytest
 from iot.payload import build_payload
 
 
-_DETECTOR = {"detected_class": "vegetacao", "class_percentage": 0.72}
+_DETECTOR = {"detected_class": "vegetacao", "class_percentage": 72.0}
 _QUALITY = {"cloud_score": 0.05, "shadow_score": 0.02, "image_quality": 0.95, "cv_confidence": 0.88}
 
 
@@ -26,6 +26,20 @@ def test_build_payload_returns_all_fields():
         assert field in payload, f"Campo ausente: {field}"
 
 
+def test_build_payload_keeps_tile_quality_outside_required_contract():
+    payload = build_payload(
+        event_id="evt-tile-quality",
+        area_id="area-br-001",
+        source="Sentinel-2",
+        detector_result=_DETECTOR,
+        quality_result=_QUALITY,
+        change_score=0.3,
+        frame_reference="frames/s2_20240501.tif",
+    )
+
+    assert "tile_quality" not in payload
+
+
 def test_build_payload_values_are_correct():
     payload = build_payload(
         event_id="evt-002",
@@ -40,7 +54,7 @@ def test_build_payload_values_are_correct():
     assert payload["area_id"] == "area-br-002"
     assert payload["source"] == "Landsat"
     assert payload["detected_class"] == "vegetacao"
-    assert payload["class_percentage"] == 0.72
+    assert payload["class_percentage"] == 72.0
     assert payload["change_score"] == 0.55
     assert payload["cloud_score"] == 0.05
     assert payload["shadow_score"] == 0.02
@@ -84,6 +98,21 @@ def test_build_payload_missing_quality_field_raises():
             source="Sentinel-2",
             detector_result=_DETECTOR,
             quality_result={},  # missing cloud_score etc.
+            change_score=0.1,
+            frame_reference="frames/x.tif",
+        )
+
+
+def test_build_payload_rejects_class_percentage_outside_contract_scale():
+    detector = {"detected_class": "vegetacao", "class_percentage": 120.0}
+
+    with pytest.raises(ValueError, match="class_percentage"):
+        build_payload(
+            event_id="evt-005",
+            area_id="area-br-001",
+            source="Sentinel-2",
+            detector_result=detector,
+            quality_result=_QUALITY,
             change_score=0.1,
             frame_reference="frames/x.tif",
         )

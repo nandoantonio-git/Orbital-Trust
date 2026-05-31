@@ -7,13 +7,18 @@ export type DetectedClass =
   | 'queimada'
   | 'baixa_visibilidade';
 
+export type ContractSource = 'Sentinel-2' | 'Landsat' | 'FIRMS' | 'INPE';
+
+// Contract scale: percentage from 0 to 100, never a 0 to 1 ratio.
+export type Percentage0To100 = number;
+
 export interface IoTPayload {
   event_id: string;
   timestamp: string;
   area_id: string;
-  source: string;
+  source: ContractSource;
   detected_class: DetectedClass;
-  class_percentage: number;
+  class_percentage: Percentage0To100;
   change_score: number;
   cloud_score: number;
   shadow_score: number;
@@ -31,8 +36,11 @@ export interface AlertResponse {
   explanation: string;
   recommendation: string;
   model_version: string;
-  class_percentage?: number;
+  class_percentage?: Percentage0To100;
   change_score?: number;
   source?: string;
+  contract_source?: ContractSource;
+  visual_product?: string;
+  tile_provider?: string;
   image_url?: string;
 }

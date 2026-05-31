@@ -32,6 +32,13 @@ venv/
 # Node
 node_modules/
 
+# Expo
+.expo/
+mobile/.expo/
+
+# Mock data gerado e consumido pelo app deve continuar versionado quando usado.
+# Não ignore mobile/src/services/generatedMockData.ts.
+
 # macOS
 .DS_Store
 

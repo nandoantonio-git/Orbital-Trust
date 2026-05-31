@@ -1,0 +1,149 @@
+from typing import Literal
+
+from fastapi import FastAPI
+from pydantic import BaseModel, ConfigDict, Field
+
+
+RiskLevel = Literal["baixo", "medio", "alto"]
+DetectedClass = Literal[
+    "vegetacao",
+    "solo_exposto",
+    "agua",
+    "queimada",
+    "baixa_visibilidade",
+]
+ContractSource = Literal["Sentinel-2", "Landsat", "FIRMS", "INPE"]
+
+MODEL_VERSION = "orbital-heuristic-v0.1.0"
+
+
+class IoTPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: str = Field(min_length=1)
+    timestamp: str = Field(min_length=1)
+    area_id: str = Field(min_length=1)
+    source: ContractSource
+    detected_class: DetectedClass
+    class_percentage: float = Field(ge=0.0, le=100.0)
+    change_score: float = Field(ge=0.0, le=1.0)
+    cloud_score: float = Field(ge=0.0, le=1.0)
+    shadow_score: float = Field(ge=0.0, le=1.0)
+    image_quality: float = Field(ge=0.0, le=1.0)
+    cv_confidence: float = Field(ge=0.0, le=1.0)
+    frame_reference: str | None = None
+
+
+class AlertResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: str
+    timestamp: str
+    detected_class: DetectedClass
+    risk_level: RiskLevel
+    analysis_confidence: float = Field(ge=0.0, le=1.0)
+    explanation: str
+    recommendation: str
+    model_version: str
+    class_percentage: float | None = Field(default=None, ge=0.0, le=100.0)
+    change_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    source: str | None = None
+    contract_source: ContractSource | None = None
+
+
+app = FastAPI(title="Orbital Trust API", version="0.1.0")
+
+
+@app.post("/alerts/analyze", response_model=AlertResponse)
+def analyze_alert(payload: IoTPayload) -> AlertResponse:
+    risk_level = derive_risk_level(
+        payload.change_score,
+        payload.detected_class,
+        payload.image_quality,
+        payload.cv_confidence,
+    )
+
+    return AlertResponse(
+        event_id=payload.event_id,
+        timestamp=payload.timestamp,
+        detected_class=payload.detected_class,
+        risk_level=risk_level,
+        analysis_confidence=derive_analysis_confidence(
+            payload.image_quality,
+            payload.cv_confidence,
+        ),
+        explanation=build_explanation(payload, risk_level),
+        recommendation=build_recommendation(payload.detected_class, risk_level),
+        model_version=MODEL_VERSION,
+        class_percentage=payload.class_percentage,
+        change_score=payload.change_score,
+        source=payload.source,
+        contract_source=payload.source,
+    )
+
+
+def derive_risk_level(
+    change_score: float,
+    detected_class: DetectedClass,
+    image_quality: float,
+    cv_confidence: float,
+) -> RiskLevel:
+    class_weight = {
+        "queimada": 0.25,
+        "solo_exposto": 0.12,
+        "baixa_visibilidade": 0.10,
+        "agua": 0.06,
+        "vegetacao": 0.0,
+    }[detected_class]
+    quality_penalty = max(0.0, 0.70 - image_quality) * 0.20
+    confidence_penalty = max(0.0, 0.70 - cv_confidence) * 0.15
+    score = change_score + class_weight + quality_penalty + confidence_penalty
+
+    if score > 0.50:
+        return "alto"
+    if score > 0.20:
+        return "medio"
+    return "baixo"
+
+
+def derive_analysis_confidence(image_quality: float, cv_confidence: float) -> float:
+    return round(max(0.0, min(1.0, (image_quality * 0.45) + (cv_confidence * 0.55))), 4)
+
+
+def build_explanation(payload: IoTPayload, risk_level: RiskLevel) -> str:
+    class_label = payload.detected_class.replace("_", " ")
+    return (
+        f"Risco {risk_level} para {class_label}: mudanca {payload.change_score:.2f}, "
+        f"qualidade {payload.image_quality:.2f} e confianca CV {payload.cv_confidence:.2f}."
+    )
+
+
+def build_recommendation(detected_class: DetectedClass, risk_level: RiskLevel) -> str:
+    recommendations = {
+        "queimada": {
+            "alto": "Acionar resposta de campo para queimada e notificar autoridades ambientais.",
+            "medio": "Validar foco com nova imagem e preparar equipe local.",
+            "baixo": "Manter monitoramento preventivo da area.",
+        },
+        "solo_exposto": {
+            "alto": "Priorizar vistoria para erosao, desmatamento ou obra irregular.",
+            "medio": "Agendar revisita orbital e comparar historico recente.",
+            "baixo": "Manter acompanhamento em ciclo regular.",
+        },
+        "agua": {
+            "alto": "Verificar alteracao hidrica relevante com equipe responsavel.",
+            "medio": "Monitorar nivel e checar eventos de cheia ou seca.",
+            "baixo": "Manter monitoramento hidrico de rotina.",
+        },
+        "baixa_visibilidade": {
+            "alto": "Reprocessar com novo frame antes de decisao operacional critica.",
+            "medio": "Aguardar melhor visibilidade e repetir a analise.",
+            "baixo": "Reagendar captura em ciclo regular.",
+        },
+        "vegetacao": {
+            "alto": "Checar mudanca brusca de cobertura vegetal em campo.",
+            "medio": "Comparar com serie historica e monitorar a area.",
+            "baixo": "Manter monitoramento ambiental de rotina.",
+        },
+    }
+    return recommendations[detected_class][risk_level]

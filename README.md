@@ -1,234 +1,213 @@
-# Athena Framework
+# Orbital Trust
 
-Framework de desenvolvimento autônomo com skill learning contínuo. Agentes LLM implementam user stories automaticamente enquanto acumulam padrões de sessões bem-sucedidas em skills reutilizáveis.
+Orbital Trust e um MVP para transformar imagens orbitais abertas em alertas ambientais confiaveis e acionaveis. O pipeline usa frames de satelite reais, como Sentinel-2, Landsat e tiles publicos equivalentes, para detectar sinais de queimada, solo exposto, agua, vegetacao e baixa visibilidade antes de entregar o resultado em um app mobile Expo.
 
----
+O projeto substitui a ideia de webcam por sequencias de frames orbitais: cada frame e carregado pelo pipeline IoT/CV, recebe metricas de qualidade e mudanca, vira um payload JSON padronizado e alimenta a camada de analise usada pelo app.
 
-## Início rápido
-
-```bash
-# 1. Clone ou faça fork deste repositório
-# 2. Inicializa o projeto (configura nome, linguagem, gate)
-bash init.sh
-
-# 3. Gere o backlog com a skill /prd no Claude Code
-# 4. Converta para prd.json com a skill /ralph
-# 5. Execute o loop autônomo
-bash scripts/ralph.sh
-```
-
----
-
-## Como funciona
-
-O Ralph Loop lê `scripts/prd.json`, pega a primeira user story com `passes: false`, monta um prompt com o contexto do `AGENTS.md` e delega a implementação para um agente LLM. Após a implementação, roda `scripts/gate.sh` e os acceptance criteria. Se tudo passar, marca a story como `passes: true` e avança para a próxima.
+## Estrutura Do Projeto
 
 ```text
-prd.json → Ralph Loop → Agente LLM → gate.sh → passes: true → próxima story
+orbital-trust/
+├── iot/              # Pipeline Python: leitura de frames, OpenCV, payload JSON
+├── api/              # FastAPI: analise heuristica e AlertResponse para o mobile
+├── mobile/           # App React Native com Expo e TypeScript
+├── scripts/          # Ralph loop, gates e geracao de mock data real
+├── data/             # Frames e manifests de satelite de amostra
+└── tests/            # Testes unitarios do pipeline Python
 ```
 
----
+Tambem existem diretorios de suporte herdados do Athena/Ralph, como `skills/`, `loops/` e `memory/`, usados para automacao de stories e aprendizado de skills.
 
-## Arquitetura
+## Arquitetura Do MVP
 
 ```text
-athena-framework/
-│
-├── AGENTS.md              # constituição do agente — contexto injetado em cada sessão
-├── init.sh                # bootstrap do projeto (preenche AGENTS.md)
-├── requirements.txt           # dependências do projeto
-├── requirements-dev.txt       # dependências de desenvolvimento
-├── requirements-example-ml.txt  # exemplo de deps para projetos ML
-│
-├── scripts/
-│   ├── ralph.sh           # loop principal com fallback triplo de providers
-│   ├── implement.sh       # execução por provider
-│   ├── gate.sh            # quality gate configurável
-│   ├── prd.json           # backlog de user stories
-│   └── audit/             # relatórios de implementação por story (gerado em runtime)
-│
-├── memory/
-│   ├── recorder.py        # grava trajectories de sessão em SQLite
-│   └── sessions.db        # banco local (gitignored)
-│
-├── skills/
-│   ├── active/            # skills injetadas como contexto em toda sessão
-│   ├── pending/           # candidatas aguardando revisão humana
-│   ├── archive/           # skills com TTL expirado
-│   ├── prd/               # skill /prd do Claude Code (gera PRDs)
-│   └── ralph/             # skill /ralph do Claude Code (converte PRD → prd.json)
-│
-└── loops/
-    ├── distill.sh         # trajectory → SKILL.md candidata
-    ├── compact.sh         # AGENTS.md → versão enxuta quando crescer demais
-    └── score.py           # quality gate híbrido para skills (regras + LLM)
+data/frames + fontes abertas
+        |
+        v
+iot/ - OpenCV, qualidade da imagem, score de mudanca, payload
+        |
+        v
+ML/API - classificacao de risco e recomendacao operacional
+        |
+        v
+mobile/ - dashboard Expo para alertas ambientais
 ```
 
----
+O MVP atual mantem a classificacao e os mocks no proprio repositorio. A separacao do contrato JSON ja esta definida para permitir extrair uma API ou modelo ML dedicado sem quebrar o app.
 
-## Providers suportados
+## Contratos JSON
 
-O loop faz um **preflight check** no início, testando cada provider na ordem abaixo. O primeiro que responder com sucesso é usado. Se durante a execução um provider atingir rate limit ou falhar 3 vezes consecutivas na mesma story, o loop troca automaticamente para o próximo.
+Nenhuma camada deve alterar estes campos sem acordo do grupo. `risk_level` aceita apenas `baixo`, `medio` ou `alto`. `class_percentage` usa sempre percentual `0-100`, nunca proporcao `0-1`.
 
-| Provider | Comando  | Modelo   | Notas                      |
-|----------|----------|----------|----------------------------|
-| Codex    | `codex`  | gpt-5.5  | padrão, danger-full-access |
-| Gemini   | `gemini` | —        | fallback 1, --yolo         |
-| Claude   | `claude` | —        | fallback 2                 |
+### IoT -> ML/API
 
-Provider ativo salvo em `scripts/.current-provider`.
-
-**Circuit breaker:** uma story que falhar `MAX_ATTEMPTS_PER_STORY` vezes consecutivas é marcada com `passes: true` + `skipped: true` e o loop avança para a próxima.
-
----
-
-## Skill Learning
-
-O sistema aprende com sessões bem-sucedidas e gera skills reutilizáveis automaticamente.
-
-### 1. Grave suas sessões
-
-```bash
-python3 memory/recorder.py --start    # inicia gravação
-# ... trabalhe normalmente ...
-python3 memory/recorder.py --end      # finaliza
-python3 memory/recorder.py --signal good   # marca como boa
-# ou
-python3 memory/recorder.py --signal bad    # marca como ruim
-```
-
-### 2. Destile padrões (acumule 3+ sessões boas primeiro)
-
-```bash
-bash loops/distill.sh
-# → gera skills/pending/skill_TIMESTAMP.md
-```
-
-### 3. Revise e promova
-
-```bash
-cat skills/pending/skill_*.md         # revisa o conteúdo
-cp skills/pending/skill_X.md skills/active/   # promove
-rm skills/pending/skill_X.md          # limpa pending
-```
-
-### 4. Compacte o AGENTS.md quando crescer
-
-```bash
-bash loops/compact.sh
-# → gera AGENTS.md.candidate
-diff AGENTS.md AGENTS.md.candidate    # compara antes de substituir
-mv AGENTS.md AGENTS.md.backup
-mv AGENTS.md.candidate AGENTS.md
-```
-
----
-
-## Gate de validação
-
-O `gate.sh` auto-detecta o tipo de arquivo ou lê `scripts/.gate-config`:
-
-```bash
-# Forçar tipo de gate
-echo "python"     > scripts/.gate-config
-echo "typescript" > scripts/.gate-config
-echo "bash"       > scripts/.gate-config
-echo "go"         > scripts/.gate-config
-
-# Gate completamente customizado
-echo "custom" > scripts/.gate-config
-# Crie scripts/.gate-custom com sua lógica de validação
-```
-
-Gates disponíveis: `python` (py_compile + pytest), `typescript` (tsc), `javascript` (node --check), `bash` (bash -n), `go` (go build), `custom`.
-
----
-
-## Escrevendo user stories (prd.json)
-
-Use a skill `/ralph` no Claude Code para converter um PRD em `scripts/prd.json`. Cada story deve:
-
-- Ser implementável em **uma única iteração** (uma janela de contexto)
-- Ter acceptance criteria **verificáveis** (não vagos)
-- Estar ordenada por **dependência** (schema → backend → UI)
-- Sempre incluir `"Typecheck passes"` como critério final
+Campos obrigatorios enviados pelo pipeline IoT/CV:
 
 ```json
 {
-  "project": "meu-projeto",
-  "branchName": "ralph/feature-name",
-  "description": "Descrição da feature",
-  "userStories": [
-    {
-      "id": "US-001",
-      "title": "Título da story",
-      "description": "Como usuário, quero X para que Y",
-      "acceptanceCriteria": [
-        "Critério específico e verificável",
-        "Typecheck passes"
-      ],
-      "priority": 1,
-      "passes": false,
-      "fix": "",
-      "notes": ""
-    }
-  ]
+  "event_id": "EVT-2024-09-30-001",
+  "timestamp": "2024-09-30T12:00:00Z",
+  "area_id": "BR-MT-001",
+  "source": "Sentinel-2",
+  "detected_class": "queimada",
+  "class_percentage": 42.7,
+  "change_score": 0.68,
+  "cloud_score": 0.04,
+  "shadow_score": 0.12,
+  "image_quality": 0.91,
+  "cv_confidence": 0.87
 }
 ```
 
-O campo `fix` aceita um patch ou instrução específica a aplicar na próxima tentativa — útil para corrigir regressões conhecidas sem alterar o enunciado da story.
+Fontes validas para frames processados: `Sentinel-2`, `Landsat`, `FIRMS` ou `INPE`. O contrato implementado tambem pode incluir `frame_reference` para rastrear o arquivo ou tile usado.
 
----
+`tile_quality` e metadado interno opcional do pipeline para auditoria de fallback e integridade do tile. Ele nao faz parte dos campos obrigatorios IoT -> ML/API e nao e campo do `AlertResponse` consumido pelo Mobile. O campo fica nos payloads gerados pelo `run_pipeline`, como `data/payloads_BR-MT-001.json`, e registra `black_ratio`, `date_used`, `url_used` quando existir, `row`/`col` ou `bbox` quando disponiveis, `source` real do tile, resultado completo de `check_tile_integrity`, `detected_class` e `class_percentage`. Quando ha fallback, `tile_quality.fallback.original_rejected` guarda o tile recusado e `tile_quality.fallback.alternative_used` guarda o tile alternativo usado.
 
-## Variáveis de ambiente
+### ML/API -> Mobile
 
-| Variável                  | Padrão | Descrição                                        |
-|---------------------------|--------|--------------------------------------------------|
-| `MAX_ATTEMPTS_PER_STORY`  | `5`    | Tentativas por story antes do circuit breaker    |
-| `WORD_THRESHOLD`          | `400`  | Palavras no AGENTS.md para disparar compact      |
-| `MIN_SESSIONS`            | `3`    | Sessões boas mínimas para rodar distill          |
-| `TAIL_N`                  | `200`  | Linhas de log exibidas por iteração              |
+Campos obrigatorios consumidos pelo app:
 
----
-
-## Opções do ralph.sh
-
-```bash
-bash scripts/ralph.sh [max_iterations] [opções]
-
-  --provider codex|gemini|claude   força um provider específico (pula preflight dos outros)
-  --skip-security-check            pula verificação de credenciais expostas em variáveis de ambiente
+```json
+{
+  "event_id": "EVT-2024-09-30-001",
+  "risk_level": "alto",
+  "analysis_confidence": 0.87,
+  "explanation": "Queimada detectada em 42.7% da area analisada.",
+  "recommendation": "Acionar brigada de combate e notificar autoridades ambientais.",
+  "model_version": "orbital-ml-v1.2.0"
+}
 ```
 
----
+A resposta mobile pode incluir dados complementares para exibicao, como `timestamp`, `detected_class`, `class_percentage`, `change_score`, `source` e `image_url`.
 
-## Devcontainer
+`AlertResponse` nao exporta `tile_quality` diretamente. Os mocks gerados por `scripts/generate_mock_data.py` usam a qualidade do tile apenas para selecionar frames validos e publicam no app somente campos tipados do contrato mobile. Para depuracao, o mesmo script grava as evidencias dos tiles em `data/generated_mock_tile_evidence.json`; consulte esse JSON por `event_id` sem poluir a UI principal.
 
-O projeto inclui `.devcontainer/` com Python 3.11, Node.js e Codex pré-instalados. Abra no VS Code com a extensão **Dev Containers** para ter o ambiente completo sem configuração local.
+Nos mocks do app, `source` descreve a origem exibida do alerta. Quando `image_url` aponta para NASA GIBS com `MODIS_Terra_CorrectedReflectance_TrueColor`, a origem visual correta e `MODIS/GIBS`; o mock tambem deve preencher `visual_product` e `tile_provider`. Use `contract_source` apenas quando houver metadado confiavel ligando o alerta a uma fonte contratual do pipeline (`Sentinel-2`, `Landsat`, `FIRMS` ou `INPE`).
 
-Portas encaminhadas por padrão: `8000`, `8888`, `5000`.
+## Executando O Pipeline
 
----
-
-## Comandos úteis
+Instale as dependencias Python usadas pelo pipeline e pelos testes:
 
 ```bash
-# Acompanhar execução em tempo real
-tail -f scripts/run.log
-tail -f scripts/events.log
+python3 -m pip install -r requirements.txt -r requirements-dev.txt
+python3 -m pip install -r iot/requirements.txt
+```
 
-# Ver progresso do backlog
+Gere mock data real para o app a partir de tiles orbitais publicos:
+
+```bash
+python3 scripts/generate_mock_data.py
+```
+
+O script busca tiles NASA GIBS, aplica o pipeline de deteccao/qualidade/mudanca e grava `mobile/src/services/generatedMockData.ts`. Ele tambem grava `data/generated_mock_tile_evidence.json` com URL, data, row/col, integridade e resultado do detector por `event_id`. Ele precisa de acesso a internet.
+
+Regenerar payloads JSON de amostra a partir dos frames locais de `data/`:
+
+```bash
+python3 scripts/regenerate_sample_payloads.py
+```
+
+O script executa `run_pipeline("data", "BR-MT-001", "Sentinel-2")` e grava `data/payloads_BR-MT-001.json`. Frames com `black_ratio > 0.15` sao ignorados pelo pipeline quando nao ha fallback valido; payloads mantidos incluem `tile_quality` para rastrear a qualidade do tile usado.
+
+## Executando A API Local
+
+Instale as dependencias Python:
+
+```bash
+python3 -m pip install -r requirements.txt -r requirements-dev.txt
+```
+
+Suba a API FastAPI:
+
+```bash
+python3 -m uvicorn api.main:app --reload
+```
+
+Analise um payload IoT:
+
+```bash
+curl -X POST http://127.0.0.1:8000/alerts/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event_id": "EVT-2024-09-30-001",
+    "timestamp": "2024-09-30T12:00:00Z",
+    "area_id": "BR-MT-001",
+    "source": "Sentinel-2",
+    "detected_class": "queimada",
+    "class_percentage": 42.7,
+    "change_score": 0.68,
+    "cloud_score": 0.04,
+    "shadow_score": 0.12,
+    "image_quality": 0.91,
+    "cv_confidence": 0.87
+  }'
+```
+
+O endpoint retorna `AlertResponse`. Enquanto nao houver modelo ML real, `risk_level` e derivado por heuristica explicita usando `change_score`, `detected_class`, `image_quality` e `cv_confidence`.
+
+## Executando O App Expo
+
+```bash
+cd mobile
+npm install
+npx expo start
+```
+
+Para abrir no navegador:
+
+```bash
+cd mobile
+npx expo start --web
+```
+
+Tambem existe um atalho no `package.json` da raiz:
+
+```bash
+npm run mobile
+```
+
+## Validacao
+
+Comandos principais de validacao do MVP:
+
+```bash
+python3 -m pytest tests/ -q --tb=short
+npx tsc --noEmit
+bash scripts/gate.sh <target>
+```
+
+Exemplos:
+
+```bash
+bash scripts/gate.sh iot/pipeline.py
+bash scripts/gate.sh mobile/src/screens/DashboardScreen.tsx
+bash scripts/gate.sh scripts/gate.sh
+```
+
+O gate detecta o tipo pelo alvo: Python roda `py_compile` e pytest, TypeScript roda `npx tsc --noEmit`, e Bash roda `bash -n`.
+
+## Ralph E Athena
+
+O repositorio ainda inclui o loop Ralph/Athena para automatizar stories do MVP. Esse conteudo e secundario para avaliacao do produto, mas segue util para o fluxo de implementacao.
+
+```bash
+bash scripts/ralph.sh
+```
+
+O Ralph le `scripts/prd.json`, seleciona a primeira story pendente, chama o provider configurado e executa `scripts/gate.sh` para validar a entrega. O provider ativo fica em `scripts/.current-provider`; a ultima story processada fica em `scripts/.last-story`.
+
+Providers previstos:
+
+| Provider | Comando  | Uso |
+|----------|----------|-----|
+| Codex    | `codex`  | Padrao |
+| Gemini   | `gemini` | Fallback |
+| Claude   | `claude` | Fallback |
+
+Comandos uteis para automacao:
+
+```bash
 jq '.userStories[] | {id, title, passes}' scripts/prd.json
-
-# Listar sessões gravadas
-python3 memory/recorder.py --list
-
-# Exportar sessões boas para JSONL
-python3 memory/recorder.py --export
-
-# Ver skills ativas
+tail -f scripts/run.log
 ls skills/active/
-
-# Ver relatórios de implementação por story
-ls scripts/audit/
 ```

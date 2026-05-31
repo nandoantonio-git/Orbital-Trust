@@ -98,6 +98,21 @@ Os frames processados (bandas calculadas, índices NDVI, etc.) ficam em `data/pr
 
 O payload produzido pelo pipeline IoT tem um contrato fixo que **não deve ser modificado** sem consenso de todo o time. Qualquer alteração quebra a integração com ML/API e o app mobile.
 
+### Fonte contratual x produto visual
+
+`source` no payload IoT identifica a fonte ambiental contratual usada pelo pipeline: `"Sentinel-2"`, `"Landsat"`, `"FIRMS"` ou `"INPE"`. Esse campo continua obrigatório e não deve ser substituído por nomes de provedores de tile.
+
+Os mocks visuais do app podem usar tiles públicos NASA GIBS para demonstração. Quando a URL aponta para `MODIS_Terra_CorrectedReflectance_TrueColor`, a origem visual é MODIS/GIBS, não Sentinel-2 nem Landsat. Nesses casos o `AlertResponse` deve manter a rastreabilidade com campos complementares:
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `source` | string | Origem exibida do alerta no mock, por exemplo `"MODIS/GIBS"` |
+| `contract_source` | string opcional | Fonte contratual quando existe metadado confiável, por exemplo `"Sentinel-2"` |
+| `visual_product` | string opcional | Produto visual usado, por exemplo `"MODIS_Terra_CorrectedReflectance_TrueColor"` |
+| `tile_provider` | string opcional | Provedor do tile, por exemplo `"NASA GIBS"` |
+
+Regra prática: uma URL MODIS/GIBS sem metadado de cena Sentinel/Landsat não deve declarar `source` como `"Sentinel-2"` ou `"Landsat"` no mock.
+
 ### Payload IoT → ML/API
 
 Campos obrigatórios:
@@ -109,12 +124,21 @@ Campos obrigatórios:
 | `area_id` | string | Identificador da área monitorada |
 | `source` | string | `"Sentinel-2"`, `"Landsat"`, `"FIRMS"` ou `"INPE"` |
 | `detected_class` | string | Classe detectada pelo CV |
-| `class_percentage` | float | Proporção da classe na cena (0–100) |
+| `class_percentage` | float | Percentual da classe na cena (0-100; nunca proporção 0-1) |
 | `change_score` | float | Score de mudança temporal (0–1) |
 | `cloud_score` | float | Cobertura de nuvens (0–100) |
 | `shadow_score` | float | Score de sombra (0–1) |
 | `image_quality` | float | Qualidade geral da imagem (0–1) |
 | `cv_confidence` | float | Confiança do modelo CV (0–1) |
+
+`tile_quality` e metadado interno opcional do pipeline, usado para auditar integridade e fallback de tiles. Ele fica fora do contrato obrigatorio IoT -> ML/API e nao deve ser repassado ao Mobile como `AlertResponse` sem uma transformacao tipada acordada.
+
+Onde consultar:
+
+- Payloads do pipeline: cada payload retornado por `run_pipeline` e arquivos como `data/payloads_BR-MT-001.json` trazem `tile_quality`.
+- Mock mobile: `scripts/generate_mock_data.py` nao exporta evidencias no `AlertResponse`; ele grava `data/generated_mock_tile_evidence.json` para depuracao por `event_id`.
+
+Campos principais de `tile_quality`: `black_ratio`, `date_used`, `url_used` quando disponivel, `row`/`col` ou `bbox` quando disponiveis, `source` real do tile, `check_tile_integrity` completo, `detected_class`, `class_percentage` e `selected_tile`. Quando ha fallback, `fallback.original_rejected` guarda o tile rejeitado e `fallback.alternative_used` guarda o tile usado.
 
 ### Resposta ML/API → Mobile
 

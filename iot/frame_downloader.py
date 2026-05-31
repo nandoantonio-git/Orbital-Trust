@@ -2,7 +2,9 @@ import json
 import os
 import urllib.request
 import urllib.error
-from typing import List
+from typing import Dict, List
+
+FRAME_SOURCES_FILE = "frame_sources.json"
 
 
 def _traceable_filename(source: str, area_id: str, scene_id: str, url: str) -> str:
@@ -17,6 +19,7 @@ def download_scene_frames(manifest_path: str, output_folder: str) -> List[str]:
 
     os.makedirs(output_folder, exist_ok=True)
     downloaded: List[str] = []
+    frame_sources: Dict[str, dict] = {}
 
     for scene in manifest.get("scenes", []):
         href: str = scene.get("asset_href", "")
@@ -29,6 +32,15 @@ def download_scene_frames(manifest_path: str, output_folder: str) -> List[str]:
 
         filename = _traceable_filename(source, area_id, scene_id, href)
         dest = os.path.join(output_folder, filename)
+        frame_sources[filename] = {
+            "source": source,
+            "url": href,
+            "url_template": scene.get("url_template", ""),
+            "datetime": scene.get("datetime", ""),
+        }
+        for key in ("row", "col", "bbox"):
+            if key in scene:
+                frame_sources[filename][key] = scene[key]
 
         if os.path.exists(dest):
             downloaded.append(dest)
@@ -39,5 +51,9 @@ def download_scene_frames(manifest_path: str, output_folder: str) -> List[str]:
             downloaded.append(dest)
         except (urllib.error.URLError, OSError) as exc:
             print(f"[frame_downloader] failed to download {href}: {exc}")
+
+    if frame_sources:
+        with open(os.path.join(output_folder, FRAME_SOURCES_FILE), "w") as f:
+            json.dump(frame_sources, f, indent=2)
 
     return downloaded
