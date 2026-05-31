@@ -4,6 +4,14 @@ Orbital Trust e um MVP para transformar imagens orbitais abertas em alertas ambi
 
 O projeto substitui a ideia de webcam por sequencias de frames orbitais: cada frame e carregado pelo pipeline IoT/CV, recebe metricas de qualidade e mudanca, vira um payload JSON padronizado e alimenta a camada de analise usada pelo app.
 
+## Integrantes
+
+- Fernando Luiz Silva Antonio — RM555201
+- Gustavo Ruiz Vieira Paulino — RM554779
+- Guilherme Abe — RM554743
+- Thomas Reichmann — RM554812
+- Vitor Sobrenome — RM500000
+
 ## Estrutura Do Projeto
 
 ```text
@@ -11,12 +19,10 @@ orbital-trust/
 ├── iot/              # Pipeline Python: leitura de frames, OpenCV, payload JSON
 ├── api/              # FastAPI: analise heuristica e AlertResponse para o mobile
 ├── mobile/           # App React Native com Expo e TypeScript
-├── scripts/          # Ralph loop, gates e geracao de mock data real
+├── scripts/          # Gates e geracao de mock data real
 ├── data/             # Frames e manifests de satelite de amostra
 └── tests/            # Testes unitarios do pipeline Python
 ```
-
-Tambem existem diretorios de suporte herdados do Athena/Ralph, como `skills/`, `loops/` e `memory/`, usados para automacao de stories e aprendizado de skills.
 
 ## Arquitetura Do MVP
 
@@ -145,6 +151,34 @@ curl -X POST http://127.0.0.1:8000/alerts/analyze \
 
 O endpoint retorna `AlertResponse`. Enquanto nao houver modelo ML real, `risk_level` e derivado por heuristica explicita usando `change_score`, `detected_class`, `image_quality` e `cv_confidence`.
 
+### Health Check
+
+A API tambem expoe um endpoint simples para validar se o servico esta disponivel:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+Resposta esperada:
+
+```json
+{
+  "status": "ok",
+  "service": "orbital-trust-ml"
+}
+```
+
+### Executando Com Docker
+
+O microservico FastAPI tambem pode ser executado em container:
+
+```bash
+docker build -t orbital-trust-api .
+docker run --rm -p 8000:8000 orbital-trust-api
+```
+
+A API ficara disponivel em `http://127.0.0.1:8000`.
+
 ## Executando O App Expo
 
 ```bash
@@ -166,6 +200,17 @@ Tambem existe um atalho no `package.json` da raiz:
 npm run mobile
 ```
 
+### Configurando Backend Do Mobile
+
+Use `mobile/.env.example` como referencia para conectar o app ao backend Java:
+
+```bash
+EXPO_PUBLIC_ALERTS_API_MODE=api
+EXPO_PUBLIC_ALERTS_BASE_URL=http://SEU-IP-LOCAL:8080/api/v1
+```
+
+Substitua `SEU-IP-LOCAL` pelo IP da maquina que esta executando o backend em desenvolvimento. O arquivo `mobile/.env` deve conter os valores reais locais e nao deve ser commitado.
+
 ## Validacao
 
 Comandos principais de validacao do MVP:
@@ -185,29 +230,3 @@ bash scripts/gate.sh scripts/gate.sh
 ```
 
 O gate detecta o tipo pelo alvo: Python roda `py_compile` e pytest, TypeScript roda `npx tsc --noEmit`, e Bash roda `bash -n`.
-
-## Ralph E Athena
-
-O repositorio ainda inclui o loop Ralph/Athena para automatizar stories do MVP. Esse conteudo e secundario para avaliacao do produto, mas segue util para o fluxo de implementacao.
-
-```bash
-bash scripts/ralph.sh
-```
-
-O Ralph le `scripts/prd.json`, seleciona a primeira story pendente, chama o provider configurado e executa `scripts/gate.sh` para validar a entrega. O provider ativo fica em `scripts/.current-provider`; a ultima story processada fica em `scripts/.last-story`.
-
-Providers previstos:
-
-| Provider | Comando  | Uso |
-|----------|----------|-----|
-| Codex    | `codex`  | Padrao |
-| Gemini   | `gemini` | Fallback |
-| Claude   | `claude` | Fallback |
-
-Comandos uteis para automacao:
-
-```bash
-jq '.userStories[] | {id, title, passes}' scripts/prd.json
-tail -f scripts/run.log
-ls skills/active/
-```
