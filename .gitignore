@@ -1,4 +1,11 @@
-# estado do loop
+# =============================================================================
+# Orbital Trust — .gitignore
+# Remove artefatos do template Ralph/Athena que não pertencem ao produto
+# =============================================================================
+
+# -------------------------------------
+# Artefatos do loop Ralph/Athena (template de auto-aprimoramento — não é produto)
+# -------------------------------------
 scripts/.current-provider
 scripts/.last-story
 scripts/.story-attempts
@@ -8,44 +15,72 @@ scripts/.model-check.log
 scripts/run.log
 scripts/events.log
 scripts/audit/
+scripts/.iter.log
+scripts/prd.json
+scripts/ralph.sh
+scripts/implement.sh
+scripts/record.sh
 
-# banco de trajectories
-memory/sessions.db
-memory/.active-session
-memory/trajectories.jsonl
+# Diretórios inteiros do template (se existirem localmente, não commitar)
+skills/
+loops/
+memory/
+AGENTS.md
 
-# candidatos aguardando revisão NÃO são gitignored — ficam no repo
-# skills/pending/*.md  <- intencional: visíveis para revisão
-
-# backup do AGENTS.md
+# Backup de AGENTS.md gerado pelo Ralph
 AGENTS.md.backup
 AGENTS.md.candidate
 
+# -------------------------------------
 # Python
+# -------------------------------------
 __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
 .venv/
 venv/
+.coverage
+htmlcov/
 
-# Node
+# Modelos ML serializados (binários grandes — commitar apenas versões de release)
+models/*.pkl
+models/*.joblib
+models/*.pkl.gz
+models/*.h5
+
+# -------------------------------------
+# Node / Expo
+# -------------------------------------
 node_modules/
-
-# Expo
 .expo/
 mobile/.expo/
+mobile/node_modules/
+dist/
+build/
 
-# Mock data gerado e consumido pelo app deve continuar versionado quando usado.
-# Não ignore mobile/src/services/generatedMockData.ts.
+# -------------------------------------
+# Dados gerados / sensíveis
+# -------------------------------------
+data/raw/
+data/generated_mock_tile_evidence.json
 
-# macOS
-.DS_Store
+# Mock data gerado para o app — NÃO ignorar, deve ser versionado
+# mobile/src/services/generatedMockData.ts <- intencional: versionado
 
-# variáveis de ambiente
+# -------------------------------------
+# Variáveis de ambiente
+# -------------------------------------
 .env
 .env.*
+.env.local
+!mobile/.env.example
 
-# dados sensíveis
-data/raw/
-models/
+# -------------------------------------
+# macOS / IDEs
+# -------------------------------------
+.DS_Store
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
