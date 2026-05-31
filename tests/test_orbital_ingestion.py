@@ -7,6 +7,7 @@ import numpy as np
 import cv2
 import pytest
 
+from iot.contract import IOT_PAYLOAD_REQUIRED_FIELDS
 from iot.orbital_ingestion import run_orbital_ingestion
 
 
@@ -93,13 +94,8 @@ def test_run_orbital_ingestion_payloads_have_required_fields():
         _mock_stac_response=_MOCK_STAC_RESPONSE,
         _mock_download=_mock_download,
     )
-    required = {
-        "event_id", "timestamp", "area_id", "source", "detected_class",
-        "class_percentage", "change_score", "cloud_score", "shadow_score",
-        "image_quality", "cv_confidence", "frame_reference",
-    }
     for payload in result:
-        for field in required:
+        for field in IOT_PAYLOAD_REQUIRED_FIELDS:
             assert field in payload, f"Campo obrigatório ausente: {field}"
 
 

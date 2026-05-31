@@ -19,7 +19,9 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from api.main import analyze_alert
 from iot.change_detector import compute_change_score
+from iot.contract import CV_ALGORITHM_VERSION, IoTPayload
 from iot.detector import detect_class
 from iot.quality import compute_quality_metrics
 from iot.tile_quality import check_tile_integrity
@@ -51,7 +53,15 @@ REQUIRED_ALERT_FIELDS = {
     "model_version",
     "class_percentage",
     "change_score",
+    "cloud_score",
+    "shadow_score",
+    "brightness_score",
+    "blur_score",
+    "image_quality",
+    "cv_confidence",
+    "algorithm_version",
     "source",
+    "contract_source",
     "visual_product",
     "tile_provider",
     "image_url",
@@ -97,51 +107,6 @@ TARGETS = [
     },
 ]
 
-_EXPLANATIONS = {
-    "queimada": "Queimada detectada em {pct:.1f}% da área. Change score {cs:.2f} indica frente de fogo ativa. Produto visual {src}.",
-    "solo_exposto": "Solo exposto em {pct:.1f}% da área. Change score {cs:.2f} sugere supressão de vegetação. Produto visual {src}.",
-    "vegetacao": "Cobertura vegetal em {pct:.1f}% da área. Change score {cs:.2f}. Produto visual {src} com boa qualidade.",
-    "agua": "Corpo hídrico identificado em {pct:.1f}% da área. Change score {cs:.2f}. Produto visual {src}.",
-    "baixa_visibilidade": "Cobertura de nuvens elevada ({pct:.1f}%). Visibilidade insuficiente para análise. Produto visual {src}.",
-}
-
-_RECOMMENDATIONS = {
-    "queimada": {
-        "alto": "Acionar brigada de combate imediatamente. Notificar IBAMA e Defesa Civil. Interditar acesso.",
-        "medio": "Monitorar avanço do fogo. Alertar equipes de campo e autoridades locais.",
-        "baixo": "Manter vigilância. Verificar origem das marcas de queima no local.",
-    },
-    "solo_exposto": {
-        "alto": "Solicitar vistoria de campo urgente. Registrar ocorrência no CAR.",
-        "medio": "Investigar causa da exposição do solo. Acionar fiscalização ambiental.",
-        "baixo": "Registrar e monitorar. Verificar se é área de pousio agrícola regular.",
-    },
-    "vegetacao": {
-        "alto": "Investigar causa da variação na cobertura vegetal. Acionar análise de campo.",
-        "medio": "Monitorar variação nos próximos 14 dias. Cruzar com dados pluviométricos.",
-        "baixo": "Manter monitoramento de rotina. Próxima análise em 30 dias.",
-    },
-    "agua": {
-        "alto": "Acionar comitê de gestão de recursos hídricos. Verificar captações irregulares.",
-        "medio": "Monitorar nível do corpo hídrico. Avaliar seca ou cheias na bacia.",
-        "baixo": "Manter monitoramento hídrico regular.",
-    },
-    "baixa_visibilidade": {
-        "alto": "Aguardar condições de visibilidade para reanálise completa.",
-        "medio": "Aguardar condições de visibilidade para reanálise.",
-        "baixo": "Reagendar captura com menor cobertura de nuvens.",
-    },
-}
-
-
-def derive_risk_level(change_score: float) -> str:
-    if change_score > 0.5:
-        return "alto"
-    elif change_score > 0.2:
-        return "medio"
-    return "baixo"
-
-
 def build_previous_frame_for_risk(curr_frame: np.ndarray, risk_level: str) -> np.ndarray:
     if risk_level == "baixo":
         return curr_frame.copy()
@@ -182,6 +147,16 @@ def _looks_like_contract_source(source: str) -> bool:
     return source in CONTRACT_SOURCES or source.startswith("Sentinel") or source.startswith("Landsat")
 
 
+def _contract_source_for_analysis(source: str) -> str:
+    if source in CONTRACT_SOURCES:
+        return source
+    if source.startswith("Sentinel"):
+        return "Sentinel-2"
+    if source.startswith("Landsat"):
+        return "Landsat"
+    return "FIRMS"
+
+
 def build_alert_from_frames(
     curr_frame: np.ndarray,
     prev_frame: np.ndarray,
@@ -198,32 +173,31 @@ def build_alert_from_frames(
 
     detected_class = cls_result["detected_class"]
     class_percentage = round(float(cls_result["class_percentage"]), 2)
-    risk_level = derive_risk_level(change_score)
     display_source = display_source_for_image(source, image_url)
-
-    explanation = _EXPLANATIONS.get(detected_class, "Análise orbital completada.").format(
-        pct=class_percentage, cs=change_score, src=display_source
+    analysis_payload = IoTPayload(
+        event_id=f"EVT-{date}-{event_index:03d}",
+        timestamp=f"{date}T12:00:00Z",
+        area_id=area_id,
+        source=_contract_source_for_analysis(source),
+        detected_class=detected_class,
+        class_percentage=class_percentage,
+        change_score=change_score,
+        cloud_score=quality["cloud_score"],
+        shadow_score=quality["shadow_score"],
+        brightness_score=quality["brightness_score"],
+        blur_score=quality["blur_score"],
+        image_quality=quality["image_quality"],
+        cv_confidence=quality["cv_confidence"],
+        frame_reference=image_url,
+        algorithm_version=CV_ALGORITHM_VERSION,
     )
-    recommendation = _RECOMMENDATIONS.get(detected_class, {}).get(
-        risk_level, "Monitorar área e reagendar análise."
-    )
+    alert = analyze_alert(analysis_payload).model_dump()
 
-    return {
-        "event_id": f"EVT-{date}-{event_index:03d}",
-        "timestamp": f"{date}T12:00:00Z",
-        "detected_class": detected_class,
-        "risk_level": risk_level,
-        "analysis_confidence": quality["cv_confidence"],
-        "explanation": explanation,
-        "recommendation": recommendation,
-        "model_version": "orbital-ml-v1.2.0",
-        "class_percentage": class_percentage,
-        "change_score": change_score,
-        "source": display_source,
-        "visual_product": GIBS_VISUAL_PRODUCT if is_gibs_modis_url(image_url) else display_source,
-        "tile_provider": GIBS_TILE_PROVIDER if is_gibs_modis_url(image_url) else "",
-        "image_url": image_url,
-    }
+    alert["source"] = display_source
+    alert["visual_product"] = GIBS_VISUAL_PRODUCT if is_gibs_modis_url(image_url) else display_source
+    alert["tile_provider"] = GIBS_TILE_PROVIDER if is_gibs_modis_url(image_url) else ""
+    alert["image_url"] = image_url
+    return alert
 
 
 def build_mock_tile_evidence(
@@ -271,6 +245,10 @@ def validate_minimum_coverage(alerts: list[dict]) -> list[str]:
     missing_risk = REQUIRED_RISK_LEVELS - risk_levels
     if missing_risk:
         errors.append("missing risk_level coverage: " + ", ".join(sorted(missing_risk)))
+
+    image_qualities = {a.get("image_quality") for a in alerts}
+    if "baixa" not in image_qualities:
+        errors.append("missing image_quality coverage: baixa")
 
     detected_classes = {a.get("detected_class") for a in alerts}
     covered_classes = detected_classes & ALLOWED_CLASSES
@@ -335,7 +313,23 @@ def format_ts_file(alerts: list) -> str:
         lines.append(f"    model_version: '{_escape_ts(a['model_version'])}',")
         lines.append(f"    class_percentage: {a['class_percentage']},")
         lines.append(f"    change_score: {a['change_score']},")
+        if "cloud_score" in a:
+            lines.append(f"    cloud_score: {a['cloud_score']},")
+        if "shadow_score" in a:
+            lines.append(f"    shadow_score: {a['shadow_score']},")
+        if "brightness_score" in a:
+            lines.append(f"    brightness_score: {a['brightness_score']},")
+        if "blur_score" in a:
+            lines.append(f"    blur_score: {a['blur_score']},")
+        if "image_quality" in a:
+            lines.append(f"    image_quality: '{_escape_ts(a['image_quality'])}',")
+        if "cv_confidence" in a:
+            lines.append(f"    cv_confidence: {a['cv_confidence']},")
+        if "algorithm_version" in a:
+            lines.append(f"    algorithm_version: '{_escape_ts(a['algorithm_version'])}',")
         lines.append(f"    source: '{_escape_ts(a['source'])}',")
+        if "contract_source" in a:
+            lines.append(f"    contract_source: '{_escape_ts(a['contract_source'])}',")
         lines.append(f"    visual_product: '{_escape_ts(a['visual_product'])}',")
         lines.append(f"    tile_provider: '{_escape_ts(a['tile_provider'])}',")
         lines.append(f"    image_url: '{_escape_ts(a['image_url'])}',")

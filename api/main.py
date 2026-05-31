@@ -1,38 +1,10 @@
-from typing import Literal
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
-
-RiskLevel = Literal["baixo", "medio", "alto"]
-DetectedClass = Literal[
-    "vegetacao",
-    "solo_exposto",
-    "agua",
-    "queimada",
-    "baixa_visibilidade",
-]
-ContractSource = Literal["Sentinel-2", "Landsat", "FIRMS", "INPE"]
+from iot.contract import ContractSource, DetectedClass, ImageQuality, IoTPayload, RiskLevel
 
 MODEL_VERSION = "orbital-heuristic-v0.1.0"
-
-
-class IoTPayload(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    event_id: str = Field(min_length=1)
-    timestamp: str = Field(min_length=1)
-    area_id: str = Field(min_length=1)
-    source: ContractSource
-    detected_class: DetectedClass
-    class_percentage: float = Field(ge=0.0, le=100.0)
-    change_score: float = Field(ge=0.0, le=1.0)
-    cloud_score: float = Field(ge=0.0, le=1.0)
-    shadow_score: float = Field(ge=0.0, le=1.0)
-    image_quality: float = Field(ge=0.0, le=1.0)
-    cv_confidence: float = Field(ge=0.0, le=1.0)
-    frame_reference: str | None = None
 
 
 class AlertResponse(BaseModel):
@@ -48,6 +20,13 @@ class AlertResponse(BaseModel):
     model_version: str
     class_percentage: float | None = Field(default=None, ge=0.0, le=100.0)
     change_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    cloud_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    shadow_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    brightness_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    blur_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    image_quality: ImageQuality | None = None
+    cv_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    algorithm_version: str | None = None
     source: str | None = None
     contract_source: ContractSource | None = None
 
@@ -91,6 +70,13 @@ def analyze_alert(payload: IoTPayload) -> AlertResponse:
         model_version=MODEL_VERSION,
         class_percentage=payload.class_percentage,
         change_score=payload.change_score,
+        cloud_score=payload.cloud_score,
+        shadow_score=payload.shadow_score,
+        brightness_score=payload.brightness_score,
+        blur_score=payload.blur_score,
+        image_quality=payload.image_quality,
+        cv_confidence=payload.cv_confidence,
+        algorithm_version=payload.algorithm_version,
         source=payload.source,
         contract_source=payload.source,
     )
@@ -99,7 +85,7 @@ def analyze_alert(payload: IoTPayload) -> AlertResponse:
 def derive_risk_level(
     change_score: float,
     detected_class: DetectedClass,
-    image_quality: float,
+    image_quality: ImageQuality,
     cv_confidence: float,
 ) -> RiskLevel:
     class_weight = {
@@ -109,7 +95,7 @@ def derive_risk_level(
         "agua": 0.06,
         "vegetacao": 0.0,
     }[detected_class]
-    quality_penalty = max(0.0, 0.70 - image_quality) * 0.20
+    quality_penalty = max(0.0, 0.70 - image_quality_score(image_quality)) * 0.20
     confidence_penalty = max(0.0, 0.70 - cv_confidence) * 0.15
     score = change_score + class_weight + quality_penalty + confidence_penalty
 
@@ -120,15 +106,20 @@ def derive_risk_level(
     return "baixo"
 
 
-def derive_analysis_confidence(image_quality: float, cv_confidence: float) -> float:
-    return round(max(0.0, min(1.0, (image_quality * 0.45) + (cv_confidence * 0.55))), 4)
+def image_quality_score(image_quality: ImageQuality) -> float:
+    return {"boa": 0.9, "media": 0.6, "baixa": 0.3}[image_quality]
+
+
+def derive_analysis_confidence(image_quality: ImageQuality, cv_confidence: float) -> float:
+    return round(max(0.0, min(1.0, (image_quality_score(image_quality) * 0.45) + (cv_confidence * 0.55))), 4)
 
 
 def build_explanation(payload: IoTPayload, risk_level: RiskLevel) -> str:
     class_label = payload.detected_class.replace("_", " ")
     return (
         f"Risco {risk_level} para {class_label}: mudanca {payload.change_score:.2f}, "
-        f"qualidade {payload.image_quality:.2f} e confianca CV {payload.cv_confidence:.2f}."
+        f"qualidade {payload.image_quality}, brilho {payload.brightness_score:.2f}, "
+        f"desfoque {payload.blur_score:.2f} e confianca CV {payload.cv_confidence:.2f}."
     )
 
 

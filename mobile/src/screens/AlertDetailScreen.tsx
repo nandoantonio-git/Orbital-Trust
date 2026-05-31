@@ -14,6 +14,11 @@ import RiskBadge from '../components/RiskBadge';
 import { getAlertById } from '../services/alertService';
 import { saveToHistory } from '../services/historyService';
 import type { AlertResponse } from '../types/alert';
+import {
+  formatImageQuality,
+  formatMetricPercent,
+  LOW_QUALITY_CAUTION,
+} from '../utils/alertMetrics';
 import type { RootStackParamList } from './DashboardScreen';
 import { useResponsive } from '../utils/responsive';
 
@@ -85,8 +90,12 @@ export default function AlertDetailScreen(): JSX.Element {
       </View>
       <View style={[styles.content, { padding: spacing.md, paddingBottom: spacing.lg }]}>
         <View style={styles.badgeRow}>
-          <RiskBadge riskLevel={alert.risk_level} />
-          <ConfidenceBadge confidence={alert.analysis_confidence} />
+          <LabeledBadge label="Risco ambiental">
+            <RiskBadge riskLevel={alert.risk_level} />
+          </LabeledBadge>
+          <LabeledBadge label="Confiança da análise">
+            <ConfidenceBadge confidence={alert.analysis_confidence} />
+          </LabeledBadge>
         </View>
 
         <DetailRow
@@ -119,6 +128,23 @@ export default function AlertDetailScreen(): JSX.Element {
         )}
         <DetailRow label="Data/Hora" value={formattedDate} />
 
+        <SectionTitle title="Evidência visual" />
+        <DetailRow
+          label="Qualidade da imagem"
+          value={formatImageQuality(alert.image_quality)}
+        />
+        <DetailRow
+          label="Confiança visual (CV)"
+          value={formatMetricPercent(alert.cv_confidence)}
+        />
+        <DetailRow label="Nuvens" value={formatMetricPercent(alert.cloud_score)} />
+        <DetailRow label="Sombras" value={formatMetricPercent(alert.shadow_score)} />
+        {alert.image_quality === 'baixa' && (
+          <Text style={[styles.cautionText, { fontSize: fontSizes.body }]}>
+            {LOW_QUALITY_CAUTION}
+          </Text>
+        )}
+
         <SectionTitle title="Explicação" />
         <Text style={[styles.bodyText, { fontSize: fontSizes.body }]}>{alert.explanation}</Text>
 
@@ -128,6 +154,22 @@ export default function AlertDetailScreen(): JSX.Element {
         <Text style={[styles.footer, { fontSize: fontSizes.caption }]}>Modelo: {alert.model_version}</Text>
       </View>
     </ScrollView>
+  );
+}
+
+function LabeledBadge({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}): JSX.Element {
+  const { fontSizes } = useResponsive();
+  return (
+    <View style={styles.labeledBadge}>
+      <Text style={[styles.badgeLabel, { fontSize: fontSizes.caption }]}>{label}</Text>
+      {children}
+    </View>
   );
 }
 
@@ -169,8 +211,16 @@ const styles = StyleSheet.create({
   },
   badgeRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginBottom: 16,
+  },
+  labeledBadge: {
+    gap: 4,
+  },
+  badgeLabel: {
+    color: '#666',
+    fontWeight: '600',
   },
   row: {
     flexDirection: 'row',
@@ -200,6 +250,15 @@ const styles = StyleSheet.create({
   },
   bodyText: {
     color: '#333',
+    lineHeight: 22,
+  },
+  cautionText: {
+    color: '#7c2d12',
+    backgroundColor: '#ffedd5',
+    borderLeftColor: '#f97316',
+    borderLeftWidth: 4,
+    padding: 12,
+    marginTop: 12,
     lineHeight: 22,
   },
   footer: {

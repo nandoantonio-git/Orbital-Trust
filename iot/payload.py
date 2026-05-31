@@ -8,21 +8,10 @@ pipeline caller needs that diagnostic detail.
 from datetime import datetime, timezone
 from typing import Any, Dict
 
+from iot.contract import CV_ALGORITHM_VERSION, IOT_PAYLOAD_REQUIRED_FIELDS, IoTPayload
 
-_REQUIRED_FIELDS = (
-    "event_id",
-    "timestamp",
-    "area_id",
-    "source",
-    "detected_class",
-    "class_percentage",
-    "change_score",
-    "cloud_score",
-    "shadow_score",
-    "image_quality",
-    "cv_confidence",
-    "frame_reference",
-)
+
+_REQUIRED_FIELDS = IOT_PAYLOAD_REQUIRED_FIELDS
 
 OPTIONAL_INTERNAL_METADATA_FIELDS = ("tile_quality",)
 
@@ -35,6 +24,7 @@ def build_payload(
     quality_result: Dict[str, Any],
     change_score: float,
     frame_reference: str,
+    algorithm_version: str = CV_ALGORITHM_VERSION,
 ) -> dict:
     if not event_id or not event_id.strip():
         raise ValueError("event_id é obrigatório")
@@ -53,13 +43,16 @@ def build_payload(
         "change_score": change_score,
         "cloud_score": quality_result["cloud_score"],
         "shadow_score": quality_result["shadow_score"],
+        "brightness_score": quality_result["brightness_score"],
+        "blur_score": quality_result["blur_score"],
         "image_quality": quality_result["image_quality"],
         "cv_confidence": quality_result["cv_confidence"],
         "frame_reference": frame_reference,
+        "algorithm_version": algorithm_version,
     }
 
     missing = [f for f in _REQUIRED_FIELDS if payload.get(f) is None]
     if missing:
         raise ValueError(f"Campos obrigatórios ausentes: {missing}")
 
-    return payload
+    return IoTPayload.model_validate(payload).model_dump()

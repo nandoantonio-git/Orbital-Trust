@@ -1,9 +1,19 @@
 import pytest
+from pydantic import ValidationError
+
+from iot.contract import CV_ALGORITHM_VERSION, IoTPayload
 from iot.payload import build_payload
 
 
 _DETECTOR = {"detected_class": "vegetacao", "class_percentage": 72.0}
-_QUALITY = {"cloud_score": 0.05, "shadow_score": 0.02, "image_quality": 0.95, "cv_confidence": 0.88}
+_QUALITY = {
+    "cloud_score": 0.05,
+    "shadow_score": 0.02,
+    "brightness_score": 0.44,
+    "blur_score": 0.12,
+    "image_quality": "boa",
+    "cv_confidence": 0.88,
+}
 
 
 def test_build_payload_returns_all_fields():
@@ -19,8 +29,9 @@ def test_build_payload_returns_all_fields():
     required = (
         "event_id", "timestamp", "area_id", "source",
         "detected_class", "class_percentage", "change_score",
-        "cloud_score", "shadow_score", "image_quality",
-        "cv_confidence", "frame_reference",
+        "cloud_score", "shadow_score", "brightness_score",
+        "blur_score", "image_quality", "cv_confidence",
+        "frame_reference", "algorithm_version",
     )
     for field in required:
         assert field in payload, f"Campo ausente: {field}"
@@ -58,9 +69,12 @@ def test_build_payload_values_are_correct():
     assert payload["change_score"] == 0.55
     assert payload["cloud_score"] == 0.05
     assert payload["shadow_score"] == 0.02
-    assert payload["image_quality"] == 0.95
+    assert payload["brightness_score"] == 0.44
+    assert payload["blur_score"] == 0.12
+    assert payload["image_quality"] == "boa"
     assert payload["cv_confidence"] == 0.88
     assert payload["frame_reference"] == "frames/l8_20240502.tif"
+    assert payload["algorithm_version"] == CV_ALGORITHM_VERSION
     assert "timestamp" in payload
 
 
@@ -116,3 +130,22 @@ def test_build_payload_rejects_class_percentage_outside_contract_scale():
             change_score=0.1,
             frame_reference="frames/x.tif",
         )
+
+
+def test_iot_payload_model_validates_complete_payload_and_rejects_missing_required():
+    payload = build_payload(
+        event_id="evt-complete",
+        area_id="area-br-001",
+        source="Sentinel-2",
+        detector_result=_DETECTOR,
+        quality_result=_QUALITY,
+        change_score=0.1,
+        frame_reference="frames/x.tif",
+    )
+
+    assert IoTPayload.model_validate(payload).event_id == "evt-complete"
+
+    incomplete = dict(payload)
+    del incomplete["algorithm_version"]
+    with pytest.raises(ValidationError):
+        IoTPayload.model_validate(incomplete)

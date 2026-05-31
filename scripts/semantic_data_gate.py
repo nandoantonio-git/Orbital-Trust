@@ -13,6 +13,7 @@ import cv2
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from iot.contract import IOT_PAYLOAD_REQUIRED_FIELDS, IoTPayload
 from iot.tile_quality import BLACK_RATIO_THRESHOLD, check_tile_integrity
 
 
@@ -31,7 +32,17 @@ REQUIRED_MOCK_FIELDS = {
     "model_version",
     "class_percentage",
     "change_score",
+    "cloud_score",
+    "shadow_score",
+    "brightness_score",
+    "blur_score",
+    "image_quality",
+    "cv_confidence",
+    "algorithm_version",
     "source",
+    "contract_source",
+    "visual_product",
+    "tile_provider",
     "image_url",
 }
 
@@ -141,6 +152,16 @@ def validate_payload_file(path: Path, data_dir: Path | None = None) -> list[str]
             continue
 
         label = str(payload.get("event_id", f"{path.name}[{index}]"))
+        contract_payload = {
+            field: payload[field]
+            for field in IOT_PAYLOAD_REQUIRED_FIELDS
+            if field in payload
+        }
+        try:
+            IoTPayload.model_validate(contract_payload)
+        except ValueError as exc:
+            errors.append(f"{label}: invalid IoT contract payload: {exc}")
+
         if not _is_percentage(payload.get("class_percentage")):
             errors.append(f"{label}: class_percentage must be in 0-100 scale")
 
@@ -211,6 +232,10 @@ def validate_mock_alerts(alerts: list[dict[str, Any]], label: str = "generatedMo
     missing_risk = REQUIRED_RISK_LEVELS - risk_levels
     if missing_risk:
         errors.append(f"{label}: missing risk_level coverage: {', '.join(sorted(missing_risk))}")
+
+    image_qualities = {a.get("image_quality") for a in alerts}
+    if "baixa" not in image_qualities:
+        errors.append(f"{label}: missing image_quality coverage: baixa")
 
     classes = {a.get("detected_class") for a in alerts}
     covered_classes = classes & ALLOWED_CLASSES

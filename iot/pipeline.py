@@ -13,6 +13,12 @@ from iot.payload import build_payload
 from iot.quality import compute_quality_metrics
 from iot.tile_fetcher import fetch_best_tile
 from iot.tile_quality import check_tile_integrity
+from iot.visual_fallback import (
+    fallback_detector_result,
+    fallback_quality_result,
+    log_visual_inference_error,
+    penalize_quality_for_fallback,
+)
 
 _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 _FRAME_SOURCES_FILE = "frame_sources.json"
@@ -307,9 +313,28 @@ def run_pipeline(
             }
 
         change_score = compute_change_score(frame_a, frame_b)
-        quality_result = compute_quality_metrics(frame_b)
-        detector_result = detect_class(frame_b)
+        visual_errors: List[str] = []
+        try:
+            quality_result = compute_quality_metrics(frame_b)
+        except Exception as exc:
+            log_visual_inference_error("quality", frame_reference, exc)
+            quality_result = fallback_quality_result()
+            visual_errors.append("quality")
+
+        try:
+            detector_result = detect_class(frame_b)
+        except Exception as exc:
+            log_visual_inference_error("detector", frame_reference, exc)
+            detector_result = fallback_detector_result()
+            quality_result = penalize_quality_for_fallback(quality_result)
+            visual_errors.append("detector")
+
         tile_quality = _build_tile_quality(selected_tile, fallback_evidence)
+        if visual_errors:
+            tile_quality["visual_inference"] = {
+                "status": "fallback",
+                "components": visual_errors,
+            }
         tile_quality["detected_class"] = detector_result["detected_class"]
         tile_quality["class_percentage"] = float(detector_result["class_percentage"])
         tile_quality["selected_tile"]["detected_class"] = detector_result["detected_class"]

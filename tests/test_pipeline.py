@@ -5,14 +5,10 @@ import numpy as np
 import pytest
 from unittest.mock import patch
 
+from iot.contract import IOT_PAYLOAD_REQUIRED_FIELDS
 from iot.pipeline import run_pipeline
 
-_REQUIRED_FIELDS = (
-    "event_id", "timestamp", "area_id", "source",
-    "detected_class", "class_percentage", "change_score",
-    "cloud_score", "shadow_score", "image_quality",
-    "cv_confidence", "frame_reference",
-)
+_REQUIRED_FIELDS = IOT_PAYLOAD_REQUIRED_FIELDS
 
 
 def _write_frame(path: str, shade: int) -> None:
@@ -32,6 +28,7 @@ def test_run_pipeline_three_frames_two_payloads(tmp_path):
     payloads = run_pipeline(str(tmp_path), "area-test-001", "Sentinel-2")
 
     assert len(payloads) == 2
+    assert len({payload["event_id"] for payload in payloads}) == len(payloads)
     for payload in payloads:
         for field in _REQUIRED_FIELDS:
             assert field in payload, f"Campo ausente: {field}"
@@ -202,3 +199,27 @@ def test_run_pipeline_payload_includes_tile_quality(tmp_path):
     assert isinstance(tq["date_used"], str)
     assert tq["date_used"] == "2000-01-01"
     assert tq["fallback"]["used"] is False
+
+
+def test_run_pipeline_detector_failure_uses_low_confidence_fallback(tmp_path, capsys):
+    _write_frame(str(tmp_path / "frame_20240601.png"), shade=1)
+    _write_frame(str(tmp_path / "frame_20240602.png"), shade=2)
+
+    with patch("iot.pipeline.detect_class", side_effect=RuntimeError("modelo indisponivel")):
+        payloads = run_pipeline(str(tmp_path), "area-test", "Sentinel-2")
+
+    assert len(payloads) == 1
+    payload = payloads[0]
+    assert payload["detected_class"] == "baixa_visibilidade"
+    assert payload["class_percentage"] == 0.0
+    assert payload["image_quality"] == "baixa"
+    assert payload["cv_confidence"] <= 0.2
+    assert payload["tile_quality"]["visual_inference"] == {
+        "status": "fallback",
+        "components": ["detector"],
+    }
+
+    captured = capsys.readouterr()
+    assert "component=detector" in captured.err
+    assert "frame_20240601.png>frame_20240602.png" in captured.err
+    assert "RuntimeError" in captured.err

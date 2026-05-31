@@ -24,9 +24,12 @@ def _payload(frame_reference: str, class_percentage: float = 42.0) -> dict:
         "change_score": 0.1,
         "cloud_score": 0.1,
         "shadow_score": 0.0,
-        "image_quality": 0.9,
+        "brightness_score": 0.45,
+        "blur_score": 0.2,
+        "image_quality": "boa",
         "cv_confidence": 0.8,
         "frame_reference": frame_reference,
+        "algorithm_version": "orbital-cv-v0.2.0",
         "tile_quality": {
             "black_ratio": 0.0,
             "date_used": "2024-07-15",

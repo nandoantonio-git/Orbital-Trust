@@ -1,4 +1,4 @@
-import type { AlertResponse, DetectedClass, RiskLevel } from '../types/alert';
+import type { AlertResponse, DetectedClass, ImageQuality, RiskLevel } from '../types/alert';
 import { generatedAlerts } from './generatedMockData';
 
 declare const process: {
@@ -6,6 +6,13 @@ declare const process: {
 };
 
 type AlertServiceMode = 'mock' | 'api';
+export type ConnectionStatus = 'online' | 'offline' | 'não verificado';
+
+export interface AlertServiceSettings {
+  mode: AlertServiceMode;
+  baseUrl: string;
+  connectionStatus: ConnectionStatus;
+}
 
 const DEFAULT_MODE: AlertServiceMode = 'mock';
 const BASE_URL =
@@ -15,6 +22,7 @@ const ALERT_SERVICE_MODE = parseMode(
 );
 
 const RISK_LEVELS = new Set<RiskLevel>(['baixo', 'medio', 'alto']);
+const IMAGE_QUALITIES = new Set<ImageQuality>(['boa', 'media', 'baixa']);
 const DETECTED_CLASSES = new Set<DetectedClass>([
   'vegetacao',
   'solo_exposto',
@@ -23,6 +31,27 @@ const DETECTED_CLASSES = new Set<DetectedClass>([
   'baixa_visibilidade',
 ]);
 const MOCK_ALERTS = validateMockAlerts(generatedAlerts);
+
+export function getAlertServiceSettings(): AlertServiceSettings {
+  return {
+    mode: ALERT_SERVICE_MODE,
+    baseUrl: sanitizeBaseUrl(BASE_URL),
+    connectionStatus: 'não verificado',
+  };
+}
+
+export async function checkAlertApiConnection(): Promise<ConnectionStatus> {
+  if (ALERT_SERVICE_MODE !== 'api') {
+    return 'não verificado';
+  }
+
+  try {
+    await fetchJson(`${BASE_URL}/alerts`);
+    return 'online';
+  } catch {
+    return 'offline';
+  }
+}
 
 export async function getAlerts(): Promise<AlertResponse[]> {
   if (ALERT_SERVICE_MODE !== 'api') {
@@ -70,6 +99,19 @@ function parseMode(value: string): AlertServiceMode {
   return value === 'api' ? 'api' : 'mock';
 }
 
+function sanitizeBaseUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.username = '';
+    parsed.password = '';
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    return url.split('?')[0].split('#')[0];
+  }
+}
+
 async function fetchJson(
   url: string,
   options: { returnNullOnNotFound?: boolean } = {},
@@ -114,7 +156,14 @@ function isAlertResponse(value: unknown): value is AlertResponse {
     typeof value.recommendation === 'string' &&
     typeof value.model_version === 'string' &&
     (value.class_percentage === undefined ||
-      isPercentage0To100(value.class_percentage))
+      isPercentage0To100(value.class_percentage)) &&
+    (value.change_score === undefined || isRatio0To1(value.change_score)) &&
+    (value.cloud_score === undefined || isRatio0To1(value.cloud_score)) &&
+    (value.shadow_score === undefined || isRatio0To1(value.shadow_score)) &&
+    (value.image_quality === undefined ||
+      (typeof value.image_quality === 'string' &&
+        IMAGE_QUALITIES.has(value.image_quality as ImageQuality))) &&
+    (value.cv_confidence === undefined || isRatio0To1(value.cv_confidence))
   );
 }
 
@@ -142,6 +191,10 @@ function isFiniteNumber(value: unknown): value is number {
 
 function isPercentage0To100(value: unknown): value is number {
   return isFiniteNumber(value) && value >= 0 && value <= 100;
+}
+
+function isRatio0To1(value: unknown): value is number {
+  return isFiniteNumber(value) && value >= 0 && value <= 1;
 }
 
 function formatError(error: unknown): string {

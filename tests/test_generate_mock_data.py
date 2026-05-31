@@ -7,7 +7,9 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, "/workspace")
+from api.main import derive_risk_level
 import scripts.generate_mock_data as gmd
+from iot.quality import compute_quality_metrics
 
 
 def _encode_png(frame: np.ndarray) -> bytes:
@@ -46,44 +48,46 @@ def _alert(event_id: str, detected_class: str, risk_level: str) -> dict:
         "model_version": "orbital-ml-v1.2.0",
         "class_percentage": 42.0,
         "change_score": 0.2,
+        "cloud_score": 0.1,
+        "shadow_score": 0.0,
+        "brightness_score": 0.45,
+        "blur_score": 0.2,
+        "image_quality": "boa",
+        "cv_confidence": 0.8,
+        "algorithm_version": "orbital-cv-v0.2.0",
         "source": "Sentinel-2",
+        "contract_source": "Sentinel-2",
         "visual_product": "Sentinel-2",
         "tile_provider": "",
         "image_url": "https://example.com/tile.jpg",
     }
 
 
-# ── derive_risk_level ─────────────────────────────────────────────────────────
+def test_generate_mock_data_delegates_final_risk_to_api_ml():
+    source = Path("scripts/generate_mock_data.py").read_text(encoding="utf-8")
 
-def test_derive_risk_level_alto_above_threshold():
-    assert gmd.derive_risk_level(0.51) == "alto"
-    assert gmd.derive_risk_level(1.0) == "alto"
-
-
-def test_derive_risk_level_medio_between_thresholds():
-    assert gmd.derive_risk_level(0.3) == "medio"
-    assert gmd.derive_risk_level(0.5) == "medio"
-    assert gmd.derive_risk_level(0.21) == "medio"
-
-
-def test_derive_risk_level_baixo_at_or_below_0_2():
-    assert gmd.derive_risk_level(0.2) == "baixo"
-    assert gmd.derive_risk_level(0.0) == "baixo"
-    assert gmd.derive_risk_level(0.1) == "baixo"
+    assert "def derive_risk_level" not in source
+    assert "analyze_alert(" in source
 
 
 def test_build_previous_frame_for_risk_produces_expected_thresholds():
     curr = _green_frame()
+    quality = compute_quality_metrics(curr)
 
-    assert gmd.derive_risk_level(gmd.compute_change_score(
-        gmd.build_previous_frame_for_risk(curr, "baixo"), curr
-    )) == "baixo"
-    assert gmd.derive_risk_level(gmd.compute_change_score(
-        gmd.build_previous_frame_for_risk(curr, "medio"), curr
-    )) == "medio"
-    assert gmd.derive_risk_level(gmd.compute_change_score(
-        gmd.build_previous_frame_for_risk(curr, "alto"), curr
-    )) == "alto"
+    for target_risk in ("baixo", "medio", "alto"):
+        change_score = gmd.compute_change_score(
+            gmd.build_previous_frame_for_risk(curr, target_risk),
+            curr,
+        )
+        assert (
+            derive_risk_level(
+                change_score=change_score,
+                detected_class="vegetacao",
+                image_quality=quality["image_quality"],
+                cv_confidence=quality["cv_confidence"],
+            )
+            == target_risk
+        )
 
 
 # ── build_alert_from_frames ────────────────────────────────────────────────────
@@ -142,7 +146,12 @@ def test_build_alert_risk_level_derived_from_change_score():
 
     assert result["risk_level"] in ("alto", "medio", "baixo")
     cs = result["change_score"]
-    expected = gmd.derive_risk_level(cs)
+    expected = derive_risk_level(
+        change_score=cs,
+        detected_class=result["detected_class"],
+        image_quality=result["image_quality"],
+        cv_confidence=result["cv_confidence"],
+    )
     assert result["risk_level"] == expected
 
 
@@ -278,6 +287,19 @@ def test_format_ts_file_contains_alert_values():
     assert "Sentinel-2" in ts
 
 
+def test_format_ts_file_contains_api_ml_contract_fields():
+    ts = gmd.format_ts_file([_alert("EVT-001", "vegetacao", "baixo")])
+
+    assert "cloud_score: 0.1" in ts
+    assert "shadow_score: 0.0" in ts
+    assert "brightness_score: 0.45" in ts
+    assert "blur_score: 0.2" in ts
+    assert "image_quality: 'boa'" in ts
+    assert "cv_confidence: 0.8" in ts
+    assert "algorithm_version: 'orbital-cv-v0.2.0'" in ts
+    assert "contract_source: 'Sentinel-2'" in ts
+
+
 def test_format_ts_file_valid_typescript_structure():
     alerts = [{
         "event_id": "EVT-001",
@@ -376,6 +398,7 @@ def test_validate_minimum_coverage_accepts_required_volume_risks_and_classes():
         _alert("EVT-004", "agua", "medio"),
         _alert("EVT-005", "vegetacao", "baixo"),
     ]
+    alerts[0]["image_quality"] = "baixa"
 
     assert gmd.validate_minimum_coverage(alerts) == []
 
@@ -390,6 +413,7 @@ def test_validate_minimum_coverage_reports_clear_failures():
 
     assert any("expected at least 5 alerts" in error for error in errors)
     assert any("missing risk_level coverage" in error for error in errors)
+    assert any("missing image_quality coverage" in error for error in errors)
     assert any("expected at least 4 detected classes" in error for error in errors)
 
 
@@ -401,6 +425,7 @@ def test_validate_minimum_coverage_rejects_gibs_url_with_contract_source():
         _alert("EVT-004", "agua", "medio"),
         _alert("EVT-005", "vegetacao", "baixo"),
     ]
+    alerts[0]["image_quality"] = "baixa"
     alerts[0]["image_url"] = (
         "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/"
         "MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-09-02/250m/7/37/44.jpg"

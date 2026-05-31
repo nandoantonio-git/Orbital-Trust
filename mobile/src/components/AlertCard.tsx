@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AlertResponse } from '../types/alert';
+import { formatVisualEvidenceSummary } from '../utils/alertMetrics';
 import { useResponsive } from '../utils/responsive';
 import ConfidenceBadge from './ConfidenceBadge';
 import RiskBadge from './RiskBadge';
@@ -43,6 +44,9 @@ export default function AlertCard({ alert, onPress }: Props): JSX.Element {
         <RiskBadge riskLevel={alert.risk_level} />
         <ConfidenceBadge confidence={alert.analysis_confidence} />
       </View>
+      <Text style={[styles.evidenceSummary, { fontSize: fontSizes.caption }]}>
+        {formatVisualEvidenceSummary(alert)}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -80,5 +84,10 @@ const styles = StyleSheet.create({
   badges: {
     flexDirection: 'row',
     gap: 8,
+    marginBottom: 8,
+  },
+  evidenceSummary: {
+    color: '#555',
+    lineHeight: 18,
   },
 });

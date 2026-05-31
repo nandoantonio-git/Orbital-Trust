@@ -126,10 +126,16 @@ Campos obrigatórios:
 | `detected_class` | string | Classe detectada pelo CV |
 | `class_percentage` | float | Percentual da classe na cena (0-100; nunca proporção 0-1) |
 | `change_score` | float | Score de mudança temporal (0–1) |
-| `cloud_score` | float | Cobertura de nuvens (0–100) |
+| `cloud_score` | float | Cobertura de nuvens (0–1) |
 | `shadow_score` | float | Score de sombra (0–1) |
-| `image_quality` | float | Qualidade geral da imagem (0–1) |
+| `brightness_score` | float | Brilho médio normalizado (0–1) |
+| `blur_score` | float | Desfoque normalizado (0–1) |
+| `image_quality` | string | `"boa"`, `"media"` ou `"baixa"` |
 | `cv_confidence` | float | Confiança do modelo CV (0–1) |
+| `frame_reference` | string | Referência do frame ou par de frames processado |
+| `algorithm_version` | string | Versão rastreável da inferência visual |
+
+A fonte única desse contrato é o modelo Pydantic `IoTPayload` em `iot/contract.py`.
 
 `tile_quality` e metadado interno opcional do pipeline, usado para auditar integridade e fallback de tiles. Ele fica fora do contrato obrigatorio IoT -> ML/API e nao deve ser repassado ao Mobile como `AlertResponse` sem uma transformacao tipada acordada.
 

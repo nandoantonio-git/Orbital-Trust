@@ -17,6 +17,8 @@ export type RootStackParamList = {
   Dashboard: undefined;
   AlertDetail: { alertId: string };
   History: undefined;
+  Settings: undefined;
+  About: undefined;
 };
 
 type DashboardNavProp = StackNavigationProp<RootStackParamList, 'Dashboard'>;

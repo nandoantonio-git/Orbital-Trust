@@ -19,8 +19,12 @@ def _payload(**overrides):
         "change_score": 0.1,
         "cloud_score": 0.04,
         "shadow_score": 0.12,
-        "image_quality": 0.91,
+        "brightness_score": 0.46,
+        "blur_score": 0.18,
+        "image_quality": "boa",
         "cv_confidence": 0.87,
+        "frame_reference": "frames/s2_20240930.tif",
+        "algorithm_version": "orbital-cv-v0.2.0",
     }
     payload.update(overrides)
     return payload
@@ -33,8 +37,13 @@ def test_analyze_alert_returns_low_risk():
     data = response.json()
     assert data["event_id"] == "EVT-2024-09-30-001"
     assert data["risk_level"] == "baixo"
-    assert data["analysis_confidence"] == 0.888
+    assert data["analysis_confidence"] == 0.8835
     assert data["model_version"] == "orbital-heuristic-v0.1.0"
+    assert data["brightness_score"] == 0.46
+    assert data["blur_score"] == 0.18
+    assert data["image_quality"] == "boa"
+    assert data["cv_confidence"] == 0.87
+    assert data["algorithm_version"] == "orbital-cv-v0.2.0"
 
 
 def test_health_returns_service_status():
@@ -64,7 +73,7 @@ def test_cors_preflight_allows_expo_react_native_request():
 def test_analyze_alert_returns_medium_risk():
     response = client.post(
         "/alerts/analyze",
-        json=_payload(change_score=0.35, detected_class="agua", image_quality=0.8),
+        json=_payload(change_score=0.35, detected_class="agua", image_quality="boa"),
     )
 
     assert response.status_code == 200
@@ -81,6 +90,27 @@ def test_analyze_alert_returns_high_risk():
     data = response.json()
     assert data["risk_level"] == "alto"
     assert "queimada" in data["recommendation"].lower()
+
+
+def test_analyze_alert_accepts_iot_payload_with_internal_metadata():
+    payload = _payload(
+        tile_quality={
+            "black_ratio": 0.0,
+            "date_used": "2024-09-30",
+            "source": "Sentinel-2",
+        }
+    )
+
+    response = client.post("/alerts/analyze", json=payload)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["event_id"] == payload["event_id"]
+    assert data["brightness_score"] == payload["brightness_score"]
+    assert data["blur_score"] == payload["blur_score"]
+    assert data["image_quality"] == payload["image_quality"]
+    assert data["algorithm_version"] == payload["algorithm_version"]
+    assert "tile_quality" not in data
 
 
 def test_analyze_alert_rejects_incomplete_iot_payload():
@@ -117,7 +147,7 @@ def test_heuristic_uses_quality_and_confidence():
         derive_risk_level(
             change_score=0.24,
             detected_class="vegetacao",
-            image_quality=0.2,
+            image_quality="baixa",
             cv_confidence=0.2,
         )
         == "medio"

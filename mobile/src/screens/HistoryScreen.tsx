@@ -14,7 +14,7 @@ import type { AlertResponse } from '../types/alert';
 import type { RootStackParamList } from './DashboardScreen';
 import { useResponsive } from '../utils/responsive';
 
-type HistoryNavProp = StackNavigationProp<RootStackParamList, 'Dashboard'>;
+type HistoryNavProp = StackNavigationProp<RootStackParamList, 'History'>;
 
 export default function HistoryScreen(): JSX.Element {
   const navigation = useNavigation<HistoryNavProp>();

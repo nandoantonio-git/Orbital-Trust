@@ -1,7 +1,7 @@
 [
   {
-    "event_id": "f79d2fea-7b63-499f-913f-9d5fde7e3884",
-    "timestamp": "2026-05-30T13:46:14.445621+00:00",
+    "event_id": "87fe41af-fede-4138-a275-d22c52643b4c",
+    "timestamp": "2026-05-31T18:19:45.352615+00:00",
     "area_id": "BR-MT-001",
     "source": "Sentinel-2",
     "detected_class": "baixa_visibilidade",
@@ -9,9 +9,12 @@
     "change_score": 0.427952,
     "cloud_score": 0.6399,
     "shadow_score": 0.0,
-    "image_quality": 0.3601,
-    "cv_confidence": 0.2074,
+    "brightness_score": 0.7999,
+    "blur_score": 0.9026,
+    "image_quality": "baixa",
+    "cv_confidence": 0.1294,
     "frame_reference": "frame_mt_20240601.jpg>frame_mt_20240715.jpg",
+    "algorithm_version": "orbital-cv-v0.2.0",
     "tile_quality": {
       "black_ratio": 0.0,
       "date_used": "2024-07-15",
@@ -42,8 +45,8 @@
     }
   },
   {
-    "event_id": "df7c9412-04a4-483b-8752-ed29075b12ee",
-    "timestamp": "2026-05-30T13:46:14.542690+00:00",
+    "event_id": "49813cd9-287c-4e5b-8a6a-a6385f84e920",
+    "timestamp": "2026-05-31T18:19:45.449908+00:00",
     "area_id": "BR-MT-001",
     "source": "Sentinel-2",
     "detected_class": "baixa_visibilidade",
@@ -51,9 +54,12 @@
     "change_score": 0.192194,
     "cloud_score": 0.5222,
     "shadow_score": 0.0935,
-    "image_quality": 0.4778,
-    "cv_confidence": 0.3006,
+    "brightness_score": 0.6996,
+    "blur_score": 0.9118,
+    "image_quality": "baixa",
+    "cv_confidence": 0.2146,
     "frame_reference": "frame_mt_20240715.jpg>frame_mt_20240815.jpg",
+    "algorithm_version": "orbital-cv-v0.2.0",
     "tile_quality": {
       "black_ratio": 0.09258651733398438,
       "date_used": "2024-08-15",

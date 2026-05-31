@@ -8,6 +8,7 @@ export type DetectedClass =
   | 'baixa_visibilidade';
 
 export type ContractSource = 'Sentinel-2' | 'Landsat' | 'FIRMS' | 'INPE';
+export type ImageQuality = 'boa' | 'media' | 'baixa';
 
 // Contract scale: percentage from 0 to 100, never a 0 to 1 ratio.
 export type Percentage0To100 = number;
@@ -22,9 +23,12 @@ export interface IoTPayload {
   change_score: number;
   cloud_score: number;
   shadow_score: number;
-  image_quality: number;
+  brightness_score: number;
+  blur_score: number;
+  image_quality: ImageQuality;
   cv_confidence: number;
   frame_reference: string;
+  algorithm_version: string;
 }
 
 export interface AlertResponse {
@@ -38,6 +42,13 @@ export interface AlertResponse {
   model_version: string;
   class_percentage?: Percentage0To100;
   change_score?: number;
+  cloud_score?: number;
+  shadow_score?: number;
+  brightness_score?: number;
+  blur_score?: number;
+  image_quality?: ImageQuality;
+  cv_confidence?: number;
+  algorithm_version?: string;
   source?: string;
   contract_source?: ContractSource;
   visual_product?: string;

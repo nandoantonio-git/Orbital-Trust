@@ -44,13 +44,13 @@ sys.path.insert(0, str(ROOT))
 from iot.detector import detect_class
 from iot.quality import compute_quality_metrics
 from iot.payload import build_payload
-
-# ── requests (opcional) ───────────────────────────────────────────────────────
-try:
-    import requests as _requests
-    _REQUESTS_OK = True
-except ImportError:
-    _REQUESTS_OK = False
+from iot.api_client import post_payload_to_api
+from iot.visual_fallback import (
+    fallback_detector_result,
+    fallback_quality_result,
+    log_visual_inference_error,
+    penalize_quality_for_fallback,
+)
 
 
 # =============================================================================
@@ -158,8 +158,22 @@ def _segment_frame(
     return (cat == 16).astype(np.float32)
 
 
+def _segment_frame_with_fallback(
+    segmenter: Any,
+    frame_rgb: np.ndarray,
+    timestamp_ms: int,
+    frame_reference: str,
+) -> tuple[np.ndarray, bool]:
+    try:
+        return _segment_frame(segmenter, frame_rgb, timestamp_ms), False
+    except Exception as exc:
+        log_visual_inference_error("segmentation", frame_reference, exc)
+        h, w = frame_rgb.shape[:2]
+        return np.ones((h, w), dtype=np.float32), True
+
+
 # =============================================================================
-#  LÓGICA DE RISCO (espelha api/main.py)
+#  PRÉVIA VISUAL NÃO-OFICIAL
 # =============================================================================
 
 _CLASS_WEIGHT = {
@@ -170,7 +184,8 @@ _CLASS_WEIGHT = {
     "vegetacao":         0.00,
 }
 
-def _derive_risk(change_score: float, detected_class: str) -> str:
+def _derive_visual_preview(change_score: float, detected_class: str) -> str:
+    """Prévia visual para overlay; a decisão oficial de risco fica na API/ML."""
     score = change_score + _CLASS_WEIGHT.get(detected_class, 0.0)
     if score > 0.50:
         return "alto"
@@ -191,13 +206,13 @@ _CLASS_PT = {
     "baixa_visibilidade": "Baixa Visibilidade",
 }
 
-_RISK_COLOR = {
+_VISUAL_PREVIEW_COLOR = {
     "alto":  (40,  40,  220),   # BGR vermelho
     "medio": (30, 165,  255),   # BGR laranja
     "baixo": (50,  200,  50),   # BGR verde
 }
 
-_RISK_PT = {
+_VISUAL_PREVIEW_PT = {
     "alto": "ALTO",
     "medio": "MÉDIO",
     "baixo": "BAIXO",
@@ -208,7 +223,7 @@ def _draw_overlay(
     frame: np.ndarray,
     mask: np.ndarray,
     detected_class: str,
-    risk_level: str,
+    visual_preview: str,
     change_score: float,
     class_pct: float,
     confidence: float,
@@ -221,16 +236,16 @@ def _draw_overlay(
     h, w = display.shape[:2]
 
     # ── segmentação colorida ──────────────────────────────────────────────────
-    risk_color = _RISK_COLOR.get(risk_level, (120, 120, 120))
+    preview_color = _VISUAL_PREVIEW_COLOR.get(visual_preview, (120, 120, 120))
     active = (mask > 0.45).astype(np.uint8)
 
     tint = np.zeros_like(display)
-    tint[active == 1] = risk_color
+    tint[active == 1] = preview_color
     display = cv2.addWeighted(display, 0.72, tint, 0.28, 0)
 
     # contorno da região ativa
     contours, _ = cv2.findContours(active * 255, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    cv2.drawContours(display, contours, -1, risk_color, 2)
+    cv2.drawContours(display, contours, -1, preview_color, 2)
 
     # ── barra superior ────────────────────────────────────────────────────────
     cv2.rectangle(display, (0, 0), (w, 84), (18, 18, 18), -1)
@@ -245,8 +260,8 @@ def _draw_overlay(
         (12, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.68, (255, 255, 255), 2, cv2.LINE_AA,
     )
     cv2.putText(
-        display, f"Risco:  {_RISK_PT.get(risk_level, risk_level)}",
-        (12, 76), cv2.FONT_HERSHEY_SIMPLEX, 0.62, risk_color, 2, cv2.LINE_AA,
+        display, f"Prévia visual (não oficial): {_VISUAL_PREVIEW_PT.get(visual_preview, visual_preview)}",
+        (12, 76), cv2.FONT_HERSHEY_SIMPLEX, 0.62, preview_color, 2, cv2.LINE_AA,
     )
 
     # badge MediaPipe
@@ -353,7 +368,6 @@ def main() -> None:
 
     # ── MediaPipe ─────────────────────────────────────────────────────────────
     segmenter = _setup_segmenter(model_path)
-    seg_mode = "tasks"
 
     # ── video writer ──────────────────────────────────────────────────────────
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
@@ -372,7 +386,7 @@ def main() -> None:
     frame_num     = 0
     payload_count = 0
     last_class    = "vegetacao"
-    last_risk     = "baixo"
+    last_preview  = "baixo"
     last_change   = 0.0
     last_class_pct= 0.0
     last_conf     = 0.0
@@ -398,12 +412,16 @@ def main() -> None:
 
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
+            frame_reference = f"video_frame_{frame_num:06d}"
+
             # ── 1. MediaPipe segmentation ─────────────────────────────────────
-            try:
-                mask = _segment_frame(segmenter, frame_rgb, timestamp_ms)
-            except Exception as exc:
-                # segmentação falhou neste frame: usa máscara cheia
-                mask = np.ones((proc_h, proc_w), dtype=np.float32)
+            mask, segmentation_fallback = _segment_frame_with_fallback(
+                segmenter,
+                frame_rgb,
+                timestamp_ms,
+                frame_reference,
+            )
+            current_seg_mode = "fallback" if segmentation_fallback else "tasks"
 
             # ── 2. Change score via diff de escala de cinza ───────────────────
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
@@ -415,12 +433,28 @@ def main() -> None:
             prev_gray = gray
 
             # ── 3. IoT detector + quality ─────────────────────────────────────
-            detected = detect_class(frame)
-            quality  = compute_quality_metrics(frame)
-            risk     = _derive_risk(change_score, detected["detected_class"])
+            visual_fallback = segmentation_fallback
+            try:
+                detected = detect_class(frame)
+            except Exception as exc:
+                log_visual_inference_error("detector", frame_reference, exc)
+                detected = fallback_detector_result()
+                visual_fallback = True
+
+            try:
+                quality = compute_quality_metrics(frame)
+            except Exception as exc:
+                log_visual_inference_error("quality", frame_reference, exc)
+                quality = fallback_quality_result()
+                visual_fallback = True
+
+            if visual_fallback:
+                quality = penalize_quality_for_fallback(quality)
+
+            preview  = _derive_visual_preview(change_score, detected["detected_class"])
 
             last_class    = detected["detected_class"]
-            last_risk     = risk
+            last_preview  = preview
             last_change   = change_score
             last_class_pct= detected["class_percentage"]
             last_conf     = quality["cv_confidence"]
@@ -434,7 +468,7 @@ def main() -> None:
                     detector_result=detected,
                     quality_result=quality,
                     change_score=change_score,
-                    frame_reference=f"video_frame_{frame_num:06d}",
+                    frame_reference=frame_reference,
                 )
                 payload_count += 1
 
@@ -444,32 +478,24 @@ def main() -> None:
                     f"  classe={last_class:18s}"
                     f"  {last_class_pct:5.1f}%"
                     f"  change={change_score:.3f}"
-                    f"  risco={risk:6s}"
+                    f"  previa_visual={preview:6s}"
                     f"  #{payload_count}"
                 )
 
-                if args.api and _REQUESTS_OK:
-                    try:
-                        resp = _requests.post(
-                            f"{args.api}/alerts/analyze",
-                            json={k: v for k, v in payload.items() if k != "tile_quality"},
-                            timeout=2,
+                if args.api:
+                    a = post_payload_to_api(args.api, payload)
+                    if a:
+                        print(
+                            f"           → API risk={a.get('risk_level'):6s}"
+                            f"  conf={a.get('analysis_confidence', 0):.2f}"
                         )
-                        if resp.ok:
-                            a = resp.json()
-                            print(
-                                f"           → API risk={a.get('risk_level'):6s}"
-                                f"  conf={a.get('analysis_confidence', 0):.2f}"
-                            )
-                    except Exception:
-                        pass
 
             # ── 5. Overlay + exibição ─────────────────────────────────────────
             display = _draw_overlay(
                 frame, mask,
-                last_class, last_risk, last_change,
+                last_class, last_preview, last_change,
                 last_class_pct, last_conf,
-                frame_num, payload_count, seg_mode,
+                frame_num, payload_count, current_seg_mode,
             )
 
             writer.write(display)
@@ -508,7 +534,7 @@ def main() -> None:
     print(f"  Frames processados : {frame_num}")
     print(f"  Payloads gerados   : {payload_count}")
     print(f"  Última classe      : {last_class}")
-    print(f"  Último risco       : {last_risk}")
+    print(f"  Última prévia      : {last_preview} (visual, não oficial)")
     print(f"  Último change_score: {last_change:.4f}")
     print("═" * 55)
 

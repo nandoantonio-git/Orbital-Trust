@@ -11,8 +11,8 @@ def test_white_frame_high_cloud():
     result = compute_quality_metrics(_solid_bgr(255, 255, 255))
     assert result["cloud_score"] == 1.0
     assert result["shadow_score"] == 0.0
-    assert result["image_quality"] == 0.0
-    for k in ("cloud_score", "shadow_score", "image_quality", "cv_confidence"):
+    assert result["image_quality"] == "baixa"
+    for k in ("cloud_score", "shadow_score", "brightness_score", "blur_score", "cv_confidence"):
         assert 0.0 <= result[k] <= 1.0
 
 
@@ -20,8 +20,8 @@ def test_black_frame_high_shadow():
     result = compute_quality_metrics(_solid_bgr(0, 0, 0))
     assert result["shadow_score"] == 1.0
     assert result["cloud_score"] == 0.0
-    assert result["image_quality"] == 0.0
-    for k in ("cloud_score", "shadow_score", "image_quality", "cv_confidence"):
+    assert result["image_quality"] == "baixa"
+    for k in ("cloud_score", "shadow_score", "brightness_score", "blur_score", "cv_confidence"):
         assert 0.0 <= result[k] <= 1.0
 
 
@@ -29,14 +29,15 @@ def test_colorful_frame_good_quality():
     result = compute_quality_metrics(_solid_bgr(0, 200, 0))
     assert result["cloud_score"] == 0.0
     assert result["shadow_score"] == 0.0
-    assert result["image_quality"] == 1.0
-    for k in ("cloud_score", "shadow_score", "image_quality", "cv_confidence"):
+    assert result["image_quality"] == "boa"
+    for k in ("cloud_score", "shadow_score", "brightness_score", "blur_score", "cv_confidence"):
         assert 0.0 <= result[k] <= 1.0
 
 
 def test_return_schema():
     result = compute_quality_metrics(_solid_bgr(100, 100, 100))
-    for k in ("cloud_score", "shadow_score", "image_quality", "cv_confidence"):
+    for k in ("cloud_score", "shadow_score", "brightness_score", "blur_score", "cv_confidence"):
         assert k in result
         assert isinstance(result[k], float)
         assert 0.0 <= result[k] <= 1.0
+    assert result["image_quality"] in ("boa", "media", "baixa")

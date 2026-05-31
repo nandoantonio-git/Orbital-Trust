@@ -43,7 +43,7 @@ O MVP atual mantem a classificacao e os mocks no proprio repositorio. A separaca
 
 ## Contratos JSON
 
-Nenhuma camada deve alterar estes campos sem acordo do grupo. `risk_level` aceita apenas `baixo`, `medio` ou `alto`. `class_percentage` usa sempre percentual `0-100`, nunca proporcao `0-1`.
+Nenhuma camada deve alterar estes campos sem acordo do grupo. A fonte unica do contrato IoT -> ML/API e o modelo Pydantic `IoTPayload` em `iot/contract.py`. `risk_level` aceita apenas `baixo`, `medio` ou `alto`. `class_percentage` usa sempre percentual `0-100`, nunca proporcao `0-1`.
 
 ### IoT -> ML/API
 
@@ -60,12 +60,16 @@ Campos obrigatorios enviados pelo pipeline IoT/CV:
   "change_score": 0.68,
   "cloud_score": 0.04,
   "shadow_score": 0.12,
-  "image_quality": 0.91,
-  "cv_confidence": 0.87
+  "brightness_score": 0.46,
+  "blur_score": 0.18,
+  "image_quality": "boa",
+  "cv_confidence": 0.87,
+  "frame_reference": "frame_a.jpg>frame_b.jpg",
+  "algorithm_version": "orbital-cv-v0.2.0"
 }
 ```
 
-Fontes validas para frames processados: `Sentinel-2`, `Landsat`, `FIRMS` ou `INPE`. O contrato implementado tambem pode incluir `frame_reference` para rastrear o arquivo ou tile usado.
+Fontes validas para frames processados: `Sentinel-2`, `Landsat`, `FIRMS` ou `INPE`. `image_quality` aceita apenas `boa`, `media` ou `baixa`.
 
 `tile_quality` e metadado interno opcional do pipeline para auditoria de fallback e integridade do tile. Ele nao faz parte dos campos obrigatorios IoT -> ML/API e nao e campo do `AlertResponse` consumido pelo Mobile. O campo fica nos payloads gerados pelo `run_pipeline`, como `data/payloads_BR-MT-001.json`, e registra `black_ratio`, `date_used`, `url_used` quando existir, `row`/`col` ou `bbox` quando disponiveis, `source` real do tile, resultado completo de `check_tile_integrity`, `detected_class` e `class_percentage`. Quando ha fallback, `tile_quality.fallback.original_rejected` guarda o tile recusado e `tile_quality.fallback.alternative_used` guarda o tile alternativo usado.
 
@@ -161,8 +165,12 @@ curl -X POST http://127.0.0.1:8000/alerts/analyze \
     "change_score": 0.68,
     "cloud_score": 0.04,
     "shadow_score": 0.12,
-    "image_quality": 0.91,
-    "cv_confidence": 0.87
+    "brightness_score": 0.46,
+    "blur_score": 0.18,
+    "image_quality": "boa",
+    "cv_confidence": 0.87,
+    "frame_reference": "frame_a.jpg>frame_b.jpg",
+    "algorithm_version": "orbital-cv-v0.2.0"
   }'
 ```
 
