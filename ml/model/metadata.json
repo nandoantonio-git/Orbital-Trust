@@ -1,0 +1,26 @@
+{
+  "model_version": "orbital-ml-v1.0.0",
+  "trained_at": "2026-06-06T17:57:57.761282+00:00",
+  "cv_accuracy_mean": 0.940833,
+  "cv_accuracy_std": 0.006124,
+  "n_samples": 1200,
+  "features": [
+    "class_percentage",
+    "change_score",
+    "cloud_score",
+    "shadow_score",
+    "brightness_score",
+    "blur_score",
+    "cv_confidence",
+    "image_quality_ord",
+    "class_vegetacao",
+    "class_solo_exposto",
+    "class_agua",
+    "class_queimada",
+    "class_baixa_visibilidade",
+    "source_Sentinel-2",
+    "source_Landsat",
+    "source_FIRMS",
+    "source_INPE"
+  ]
+}
