@@ -4,9 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
 from iot.contract import ContractSource, DetectedClass, ImageQuality, IoTPayload, RiskLevel
-from ml.predict import ModelNotTrainedError, predict as ml_predict
 
-MODEL_VERSION = "orbital-heuristic-v0.1.0"  # usado só como fallback legado
+_logger = logging.getLogger(__name__)
+
+MODEL_VERSION = "orbital-heuristic-v0.1.0"
 
 
 class AlertResponse(BaseModel):
@@ -43,14 +44,6 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 
-_logger = logging.getLogger(__name__)
-
-@app.on_event("startup")
-async def _startup() -> None:
-    _logger.warning(
-        "CORS aberto (allow_origins=['*']) — ambiente acadêmico MVP apenas. "
-        "Restringir origens antes de qualquer deploy em produção."
-    )
 
 
 @app.get("/health")
@@ -60,35 +53,25 @@ def health() -> dict[str, str]:
 
 @app.post("/alerts/analyze", response_model=AlertResponse)
 def analyze_alert(payload: IoTPayload) -> AlertResponse:
-    try:
-        result = ml_predict(payload)
-        risk_level: RiskLevel = result["risk_level"]
-        analysis_confidence = result["analysis_confidence"]
-        explanation = result["explanation"]
-        recommendation = result["recommendation"]
-        model_version = result["model_version"]
-    except ModelNotTrainedError:
-        # Fallback heurístico enquanto o modelo não foi treinado
-        risk_level = derive_risk_level(
-            payload.change_score,
-            payload.detected_class,
-            payload.image_quality,
-            payload.cv_confidence,
-        )
-        analysis_confidence = derive_analysis_confidence(payload.image_quality, payload.cv_confidence)
-        explanation = build_explanation(payload, risk_level)
-        recommendation = build_recommendation(payload.detected_class, risk_level)
-        model_version = MODEL_VERSION
+    risk_level = derive_risk_level(
+        payload.change_score,
+        payload.detected_class,
+        payload.image_quality,
+        payload.cv_confidence,
+    )
 
     return AlertResponse(
         event_id=payload.event_id,
         timestamp=payload.timestamp,
         detected_class=payload.detected_class,
         risk_level=risk_level,
-        analysis_confidence=analysis_confidence,
-        explanation=explanation,
-        recommendation=recommendation,
-        model_version=model_version,
+        analysis_confidence=derive_analysis_confidence(
+            payload.image_quality,
+            payload.cv_confidence,
+        ),
+        explanation=build_explanation(payload, risk_level),
+        recommendation=build_recommendation(payload.detected_class, risk_level),
+        model_version=MODEL_VERSION,
         class_percentage=payload.class_percentage,
         change_score=payload.change_score,
         cloud_score=payload.cloud_score,

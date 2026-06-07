@@ -4,7 +4,7 @@
     "dockerfile": "Dockerfile",
     "context": "..",
     "args": {
-      "BASE_IMAGE": "mcr.microsoft.com/devcontainers/python:3.11-bookworm",
+      "BASE_IMAGE": "mcr.microsoft.com/devcontainers/python:3.13-bookworm",
       "USERNAME": "vscode"
     }
   },

@@ -55,7 +55,7 @@ def run_orbital_ingestion(
         original_dir = _sm_module.MANIFESTS_DIR
         _sm_module.MANIFESTS_DIR = manifests_dir
         try:
-            manifest = build_scene_manifest(scenes, area_id=area_id)
+            _ = build_scene_manifest(scenes, area_id=area_id)
         finally:
             _sm_module.MANIFESTS_DIR = original_dir
 

@@ -1,6 +1,5 @@
 from typing import Any, Dict, List, Optional
 from urllib.request import urlopen, Request
-from urllib.parse import urlencode
 import json
 import ssl
 import certifi
