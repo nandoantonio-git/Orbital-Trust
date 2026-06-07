@@ -10,7 +10,7 @@ O projeto substitui a ideia de webcam por sequencias de frames orbitais: cada fr
 - Gustavo Ruiz Vieira Paulino — RM554779
 - Guilherme Abe — RM554743
 - Thomas Reichmann — RM554812
-- Vitor Sobrenome — TODO: preencher RM real antes da entrega final
+- Victor Dias - RM558017
 
 ## Estrutura Do Projeto
 
