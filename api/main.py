@@ -1,3 +1,4 @@
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
@@ -41,6 +42,15 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
+
+_logger = logging.getLogger(__name__)
+
+@app.on_event("startup")
+async def _startup() -> None:
+    _logger.warning(
+        "CORS aberto (allow_origins=['*']) — ambiente acadêmico MVP apenas. "
+        "Restringir origens antes de qualquer deploy em produção."
+    )
 
 
 @app.get("/health")
