@@ -3,6 +3,15 @@
 # =============================================================================
 
 # -------------------------------------
+# Scripts ad-hoc de fix/auditoria (root level)
+# -------------------------------------
+fix*.sh
+fixes.sh
+
+# Prompts de uso interno / IA
+prompt_*.md
+
+# -------------------------------------
 # Infraestrutura e Scripts de Suporte
 # -------------------------------------
 scripts/audit/

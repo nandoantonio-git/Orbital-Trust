@@ -1,113 +1,148 @@
 # Orbital Trust
 
-Orbital Trust e um MVP para transformar imagens orbitais abertas em alertas ambientais confiaveis e acionaveis. O pipeline usa frames de satelite reais, como Sentinel-2, Landsat e tiles publicos equivalentes, para detectar sinais de queimada, solo exposto, agua, vegetacao e baixa visibilidade antes de entregar o resultado em um app mobile Expo.
-
-O projeto substitui a ideia de webcam por sequencias de frames orbitais: cada frame e carregado pelo pipeline IoT/CV, recebe metricas de qualidade e mudanca, vira um payload JSON padronizado e alimenta a camada de analise usada pelo app.
+Pipeline IoT de visão computacional que transforma frames de satélite em alertas ambientais confiáveis e acionáveis. Cada frame orbital passa por segmentação semântica com MediaPipe, detecção de classe por heurística BGR, métricas de qualidade visual e envio automático para a API FastAPI — que deriva o nível de risco e entrega o resultado no app mobile Expo em tempo real.
 
 ## Integrantes
 
-- Fernando Luiz Silva Antonio — RM555201
-- Gustavo Ruiz Vieira Paulino — RM554779
-- Guilherme Abe — RM554743
-- Thomas Reichmann — RM554812
-- Victor Dias - RM558017
+| Nome | RM |
+|---|---|
+| Fernando Luiz Silva Antonio | RM555201 |
+| Gustavo Ruiz Vieira Paulino | RM554779 |
+| Guilherme Abe | RM554743 |
+| Thomas Reichmann | RM554812 |
+| Victor Dias | RM558017 |
 
-## Estrutura Do Projeto
+## Estrutura do Projeto
 
 ```text
 orbital-trust/
-├── iot/              # Pipeline Python: leitura de frames, OpenCV, payload JSON
-├── api/              # FastAPI: analise heuristica e AlertResponse para o mobile
-├── mobile/           # App React Native com Expo e TypeScript
-├── scripts/          # Gates e geracao de mock data real
-├── data/             # Frames e manifests de satelite de amostra
-└── tests/            # Testes unitarios do pipeline Python
+├── api/              # FastAPI: heurística de risco + store + endpoints /pipeline
+├── iot/              # Pipeline Python: OpenCV, MediaPipe, payload IoT
+├── ml/               # RandomForest (94% CV acc) + features + notebook
+├── mobile/           # App React Native — Expo SDK 52 + TypeScript
+├── tests/            # 172 testes pytest
+├── scripts/          # Gates, mock data, PRD
+├── data/             # Frames e manifests de satélite de amostra
+├── queimada.mp4      # Vídeo de demo na raiz
+└── Dockerfile        # python:3.11-bookworm, porta 8000
 ```
 
-## Arquitetura Do MVP
+## Arquitetura do MVP
 
 ```text
-data/frames + fontes abertas
+queimada.mp4 (frames simulando satélite)
         |
         v
-iot/ - OpenCV, qualidade da imagem, score de mudanca, payload
+iot/demo_video.py
+  ├── OpenCV          — leitura de frames + change_score
+  ├── MediaPipe       — ImageSegmenter DeepLab v3 TFLite
+  ├── _detect_flame_mask()  — heurística BGR de chama (threshold 8%)
+  ├── quality.py      — cloud, shadow, blur, brightness, cv_confidence
+  └── payload.py      — IoTPayload validado por Pydantic
         |
-        v
-ML/API - classificacao de risco e recomendacao operacional
+        v  POST /alerts/analyze
+api/main.py (FastAPI)
+  ├── derive_risk_level()   — heurística: change_score + class_weight + penalidades
+  ├── _alerts_store         — store em memória (FIFO, cap 200)
+  ├── POST /pipeline/start  — dispara demo_video.py como subprocess
+  └── GET  /alerts          — polling pelo mobile
         |
-        v
-mobile/ - dashboard Expo para alertas ambientais
+        v  polling 3s
+mobile/ (Expo React Native)
+  ├── DashboardScreen   — botão ▶ Analisar Vídeo + alertas em tempo real
+  ├── AlertDetailScreen — métricas completas + histórico AsyncStorage
+  ├── HistoryScreen     — log local persistido
+  └── SettingsScreen    — modo API vs Mock
 ```
 
-O MVP atual mantem a classificacao e os mocks no proprio repositorio. A separacao do contrato JSON ja esta definida para permitir extrair uma API ou modelo ML dedicado sem quebrar o app.
+## Bibliotecas Utilizadas
 
-## Arquitetura e Contratos
+**Visão Computacional / IoT (Python)**
 
-O Orbital Trust utiliza uma arquitetura distribuída e desacoplada:
+| Biblioteca | Uso |
+|---|---|
+| `opencv-python` | Leitura de vídeo, change_score, overlay visual, morfologia |
+| `mediapipe` | ImageSegmenter Tasks API (DeepLab v3 TFLite) |
+| `numpy` | Manipulação de máscaras e frames |
+| `pydantic` | Validação de contrato IoTPayload |
+| `fastapi` + `uvicorn` | API de análise e endpoints de pipeline |
 
-1.  **IoT (Edge):** Processamento de imagens orbitais/vídeo, extração de métricas de qualidade e inferência visual preliminar.
-2.  **ML/API (Brain):** Recebe o payload do IoT, refina o risco ambiental e gera recomendações operacionais.
-3.  **Mobile (User):** Exibe alertas, histórico e métricas de confiança.
+**Mobile**
 
-### Contrato IoT -> ML/API
-
-A fonte única da verdade para o contrato é o modelo Pydantic `IoTPayload` em `iot/contract.py`.
-
-Campos obrigatórios enviados pelo pipeline IoT/CV:
-
-```json
-{
-  "event_id": "UUID/String",
-  "timestamp": "ISO-8601",
-  "area_id": "string",
-  "source": "Sentinel-2 | Landsat | FIRMS | INPE",
-  "detected_class": "queimada | solo_exposto | agua | vegetacao | baixa_visibilidade",
-  "class_percentage": 0-100,
-  "change_score": 0-1,
-  "cloud_score": 0-1,
-  "shadow_score": 0-1,
-  "brightness_score": 0-1,
-  "blur_score": 0-1,
-  "image_quality": "boa | media | baixa",
-  "cv_confidence": 0-1,
-  "frame_reference": "string",
-  "algorithm_version": "string"
-}
-```
-
-Fontes válidas para frames processados: `Sentinel-2`, `Landsat`, `FIRMS` ou `INPE`.
-
-`tile_quality` é metadado interno opcional do pipeline para auditoria de fallback e integridade do tile. Ele não faz parte dos campos obrigatórios IoT -> ML/API e não é campo do `AlertResponse` consumido pelo Mobile.
+| Biblioteca | Uso |
+|---|---|
+| `expo` ~52.0.40 | Runtime React Native |
+| `@react-navigation/stack` | Navegação entre telas |
+| `@react-native-async-storage` | Histórico local persistido |
 
 ## Instalação e Execução
 
-As dependências de todos os módulos Python estão consolidadas no arquivo raiz.
-
 ```bash
-# Instalação unificada
+# Clone e entre na pasta do projeto
+git clone https://github.com/nandoantonio-git/Orbital-Trust
+cd Orbital-Trust
+
+# Instalar dependências Python
 pip install -r requirements.txt
 
-# Execução da Demo de Vídeo (IoT)
-python3 iot/demo_video.py --input seu_video.mp4
+# Terminal 1 — API
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 
-# Execução da API
-uvicorn api.main:app --reload
+# Terminal 2 — Demo de vídeo (ou acionar pelo app)
+python3 iot/demo_video.py \
+  --input queimada.mp4 \
+  --area-id BR-MT-001 \
+  --every 30 \
+  --api http://localhost:8000 \
+  --show
+
+# Terminal 3 — Mobile
+cd mobile
+npm install
+npx expo start
 ```
 
-## Mobile
+**Configurar IP do backend no mobile:**
 
-O aplicativo está desenvolvido em React Native com Expo SDK 52 e TypeScript.
+Crie `mobile/.env` com o IP da máquina rodando a API:
 
-**Telas principais:**
-- **Dashboard:** Visão geral dos alertas ativos.
-- **Detalhes:** Métricas profundas de qualidade e confiança.
-- **Histórico:** Log local de eventos persistido via AsyncStorage.
-- **Configurações:** Controle de modo de dados (API vs Mock).
-- **Sobre:** Informações do projeto Orbital Trust.
+```bash
+EXPO_PUBLIC_ALERTS_API_MODE=api
+EXPO_PUBLIC_ALERTS_BASE_URL=http://SEU-IP-LOCAL:8000
+```
 
-A API registra `CORSMiddleware` para permitir chamadas locais do Expo/React Native durante o desenvolvimento do MVP. As origens estao liberadas com `["*"]` neste ambiente academico; em producao, restrinja para os dominios confiaveis.
+Para descobrir o IP local:
+```bash
+# macOS/Linux
+ipconfig getifaddr en0
 
-Analise um payload IoT:
+# Windows
+ipconfig
+```
+
+## Controle Interativo do Demo
+
+Enquanto a janela OpenCV estiver aberta:
+
+| Tecla | Ação |
+|---|---|
+| `q` | Encerrar |
+| `p` | Pausar / retomar |
+| `s` | Salvar PNG do frame atual |
+
+## Endpoints da API
+
+| Método | Path | Descrição |
+|---|---|---|
+| `GET` | `/health` | Healthcheck |
+| `POST` | `/alerts/analyze` | Analisa IoTPayload e gera alerta |
+| `GET` | `/alerts` | Lista alertas (mais recentes primeiro) |
+| `GET` | `/alerts/{event_id}` | Busca alerta por ID |
+| `POST` | `/pipeline/start` | Inicia demo_video.py como subprocess |
+| `POST` | `/pipeline/stop` | Encerra o pipeline |
+| `GET` | `/pipeline/status` | Estado atual do pipeline |
+
+**Exemplo — analisar payload:**
 
 ```bash
 curl -X POST http://127.0.0.1:8000/alerts/analyze \
@@ -131,90 +166,60 @@ curl -X POST http://127.0.0.1:8000/alerts/analyze \
   }'
 ```
 
-O endpoint retorna `AlertResponse`. Enquanto nao houver modelo ML real, `risk_level` e derivado por heuristica explicita usando `change_score`, `detected_class`, `image_quality` e `cv_confidence`.
-
-### Health Check
-
-A API tambem expoe um endpoint simples para validar se o servico esta disponivel:
+**Healthcheck:**
 
 ```bash
 curl http://127.0.0.1:8000/health
+# {"status": "ok", "service": "orbital-trust-ml"}
 ```
 
-Resposta esperada:
+## Contrato IoTPayload
+
+Fonte única da verdade: `iot/contract.py` (Pydantic).
 
 ```json
 {
-  "status": "ok",
-  "service": "orbital-trust-ml"
+  "event_id": "string",
+  "timestamp": "ISO-8601",
+  "area_id": "string",
+  "source": "Sentinel-2 | Landsat | FIRMS | INPE",
+  "detected_class": "queimada | solo_exposto | agua | vegetacao | baixa_visibilidade",
+  "class_percentage": "0.0–100.0",
+  "change_score": "0.0–1.0",
+  "cloud_score": "0.0–1.0",
+  "shadow_score": "0.0–1.0",
+  "brightness_score": "0.0–1.0",
+  "blur_score": "0.0–1.0",
+  "image_quality": "boa | media | baixa",
+  "cv_confidence": "0.0–1.0",
+  "frame_reference": "string",
+  "algorithm_version": "string"
 }
 ```
 
-### Executando Com Docker
-
-O microservico FastAPI tambem pode ser executado em container:
+## Docker
 
 ```bash
 docker build -t orbital-trust .
 docker run --rm -p 8000:8000 orbital-trust
 ```
 
-A API ficara disponivel em `http://127.0.0.1:8000`.
+> **Nota:** `--show` (janela OpenCV) requer display gráfico. Em ambiente headless (Docker sem X11), omita a flag `--show` ao rodar `demo_video.py`.
 
-## Executando O App Expo
-
-```bash
-cd mobile
-npm install
-npx expo start
-```
-
-Para abrir no navegador:
+## Validação
 
 ```bash
-cd mobile
-npx expo start --web
-```
-
-Tambem existe um atalho no `package.json` da raiz:
-
-```bash
-npm run mobile
-```
-
-### Configurando Backend Do Mobile
-
-Use `mobile/.env.example` como referencia para conectar o app ao backend Java:
-
-```bash
-EXPO_PUBLIC_ALERTS_API_MODE=api
-EXPO_PUBLIC_ALERTS_BASE_URL=http://SEU-IP-LOCAL:8080/api/v1
-```
-
-Substitua `SEU-IP-LOCAL` pelo IP da maquina que esta executando o backend em desenvolvimento. O arquivo `mobile/.env` deve conter os valores reais locais e nao deve ser commitado.
-
-## Validacao
-
-Comandos principais de validacao do MVP:
-
-```bash
+# Testes Python
 python3 -m pytest tests/ -q --tb=short
-npx tsc --noEmit
-bash scripts/gate.sh <target>
-```
 
-Exemplos:
+# TypeScript (zero erros)
+cd mobile && npx tsc --noEmit
 
-```bash
-bash scripts/gate.sh iot/pipeline.py
+# Gate de qualidade (Python, TypeScript ou Bash)
+bash scripts/gate.sh iot/demo_video.py
 bash scripts/gate.sh mobile/src/screens/DashboardScreen.tsx
-bash scripts/gate.sh scripts/gate.sh
 ```
 
-O gate detecta o tipo pelo alvo: Python roda `py_compile` e pytest, TypeScript roda `npx tsc --noEmit`, e Bash roda `bash -n`.
+## CORS
 
-## Pendencias Academicas
-
-- Video da disciplina: pendente de gravacao/publicacao final.
-- Notebook ML: `notebooks/orbital_trust_ml.ipynb` existe no repositorio; revisar execucao completa e outputs antes da entrega final.
-- RM do Vitor: pendente de confirmacao no cadastro do grupo.
+A API registra `CORSMiddleware` com `allow_origins=["*"]` para chamadas locais do Expo durante o desenvolvimento. Em produção, restringir para os domínios confiáveis.

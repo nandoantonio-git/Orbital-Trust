@@ -23,7 +23,7 @@ def test_demo_video_marks_local_score_as_non_official_visual_preview() -> None:
 
     assert "def _derive_risk" not in source
     assert "_derive_visual_preview" in source
-    assert "não oficial" in source
+    assert "nao oficial" in source
     assert "Risco:" not in source
 
 
@@ -51,7 +51,7 @@ def test_missing_input_exits_with_clear_message() -> None:
     )
 
     assert result.returncode != 0
-    assert "arquivo de entrada não encontrado" in result.stderr
+    assert "arquivo de entrada nao encontrado" in result.stderr
 
 
 def test_segmentation_failure_uses_full_mask_logs_and_penalizes_confidence(monkeypatch, capsys) -> None:
