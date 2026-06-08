@@ -22,7 +22,9 @@ Teclas durante execucao:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+import tempfile
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -35,6 +37,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+os.environ.setdefault("MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "orbital-trust-matplotlib"))
 
 from iot.detector import detect_class
 from iot.quality import compute_quality_metrics
@@ -63,6 +66,16 @@ MODEL_URL = (
 def _die(message: str) -> None:
     print(f"[demo_video] ERRO: {message}", file=sys.stderr)
     raise SystemExit(1)
+
+
+def _can_show_preview() -> bool:
+    if not sys.stdout.isatty():
+        return False
+    if sys.platform.startswith("linux") and not (
+        os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
+    ):
+        return False
+    return True
 
 
 def _ensure_model(model_path: Path) -> Path:
@@ -364,6 +377,10 @@ def main() -> None:
     parser.add_argument("--speed",  type=float, default=1.0)
     parser.add_argument("--resize", type=int, default=1280)
     args = parser.parse_args()
+
+    if args.show and not _can_show_preview():
+        print("[demo_video] Preview desativado: ambiente sem display interativo.")
+        args.show = False
 
     if args.every <= 0:
         _die("--every deve ser maior que zero")

@@ -59,6 +59,7 @@ __pycache__/
 venv/
 .coverage
 htmlcov/
+iot/outputs/
 
 # Modelos ML serializados (binários grandes — commitar apenas versões de release)
 models/*.pkl
@@ -75,6 +76,7 @@ mobile/.expo/
 mobile/node_modules/
 dist/
 build/
+
 
 # -------------------------------------
 # Dados gerados / sensíveis
