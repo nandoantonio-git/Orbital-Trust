@@ -69,8 +69,6 @@ def _die(message: str) -> None:
 
 
 def _can_show_preview() -> bool:
-    if not sys.stdout.isatty():
-        return False
     if sys.platform.startswith("linux") and not (
         os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
     ):
