@@ -11,3 +11,5 @@ httpx
 ruff
 black
 mypy
+joblib
+scikit-learn

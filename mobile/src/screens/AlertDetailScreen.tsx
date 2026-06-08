@@ -34,7 +34,7 @@ const CLASS_LABELS: Record<string, string> = {
 
 export default function AlertDetailScreen(): JSX.Element {
   const route = useRoute<AlertDetailRouteProp>();
-  const { alertId } = route.params;
+  const { alertId, alertData: prefetchedAlert } = route.params;
   const [alert, setAlert] = useState<AlertResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -42,6 +42,14 @@ export default function AlertDetailScreen(): JSX.Element {
   const { fontSizes, spacing } = useResponsive();
 
   useEffect(() => {
+    // se o alerta já veio na navegação (ex: histórico), usa direto sem fetch
+    if (prefetchedAlert) {
+      setAlert(prefetchedAlert);
+      saveToHistory(prefetchedAlert).catch(() => undefined);
+      setLoading(false);
+      return;
+    }
+
     getAlertById(alertId)
       .then((data) => {
         if (data === null) {
@@ -52,7 +60,7 @@ export default function AlertDetailScreen(): JSX.Element {
         }
       })
       .finally(() => setLoading(false));
-  }, [alertId]);
+  }, [alertId, prefetchedAlert]);
 
   if (loading) {
     return (

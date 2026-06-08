@@ -57,7 +57,10 @@ export default function HistoryScreen(): JSX.Element {
         <AlertCard
           alert={item}
           onPress={() =>
-            navigation.navigate('AlertDetail', { alertId: item.event_id })
+            navigation.navigate('AlertDetail', {
+              alertId: item.event_id,
+              alertData: item,
+            })
           }
         />
       )}

@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { generatedAlerts } from './generatedMockData';
+
 import type {
   AlertResponse,
   ContractSource,
@@ -29,6 +31,10 @@ const CONTRACT_SOURCES = new Set<ContractSource>([
   'INPE',
 ]);
 
+export async function clearHistory(): Promise<void> {
+  await AsyncStorage.removeItem(HISTORY_KEY);
+}
+
 export async function saveToHistory(alert: AlertResponse): Promise<void> {
   const raw = await AsyncStorage.getItem(HISTORY_KEY);
   const existing = parseHistory(raw);
@@ -40,6 +46,13 @@ export async function saveToHistory(alert: AlertResponse): Promise<void> {
 export async function getHistory(): Promise<AlertResponse[]> {
   const raw = await AsyncStorage.getItem(HISTORY_KEY);
   const items = parseHistory(raw);
+
+  if (items.length === 0) {
+    return [...generatedAlerts].sort(
+      (a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp),
+    );
+  }
+
   return [...items].sort(
     (a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp),
   );

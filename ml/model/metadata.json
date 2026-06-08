@@ -1,8 +1,8 @@
 {
   "model_version": "orbital-ml-v1.0.0",
-  "trained_at": "2026-06-06T17:57:57.761282+00:00",
+  "trained_at": "2026-06-07T23:42:49.164098+00:00",
   "cv_accuracy_mean": 0.940833,
-  "cv_accuracy_std": 0.006124,
+  "cv_accuracy_std": 0.004082,
   "n_samples": 1200,
   "features": [
     "class_percentage",

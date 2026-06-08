@@ -37,6 +37,12 @@ export default function App(): JSX.Element {
             headerRight: () => (
               <View style={styles.headerActions}>
                 <TouchableOpacity
+                  onPress={() => navigation.navigate('About')}
+                  style={styles.headerButton}
+                >
+                  <Text style={styles.headerButtonText}>Sobre</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   onPress={() => navigation.navigate('History')}
                   style={styles.headerButton}
                 >

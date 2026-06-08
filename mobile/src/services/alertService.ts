@@ -72,12 +72,20 @@ export async function getAlertById(id: string): Promise<AlertResponse | null> {
     return MOCK_ALERTS.find((a) => a.event_id === id) ?? null;
   }
 
-  const data = await fetchJson(`${BASE_URL}/alerts/${encodeURIComponent(id)}`, {
-    returnNullOnNotFound: true,
-  });
+  let data: unknown | null;
+  try {
+    data = await fetchJson(`${BASE_URL}/alerts/${encodeURIComponent(id)}`, {
+      returnNullOnNotFound: true,
+    });
+  } catch {
+    // API inacessível ou erro de rede: fallback nos mocks
+    return MOCK_ALERTS.find((a) => a.event_id === id) ?? null;
+  }
 
+  // fallback para mocks quando o alerta não existe na API
+  // (ex: alertas do histórico local que vieram dos mocks)
   if (data === null) {
-    return null;
+    return MOCK_ALERTS.find((a) => a.event_id === id) ?? null;
   }
 
   if (!isAlertResponse(data)) {
