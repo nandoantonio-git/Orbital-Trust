@@ -75,6 +75,10 @@ mobile/ (Expo React Native)
 | `@react-navigation/stack` | Navegação entre telas |
 | `@react-native-async-storage` | Histórico local persistido |
 
+## Vídeo de Demonstração
+
+https://youtu.be/UN1aaWsvnXQ
+
 ## Instalação e Execução
 
 ```bash
